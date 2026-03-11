@@ -165,7 +165,8 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // 避免在中文輸入法（IME）選字時觸發發送
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage(input);
     }
