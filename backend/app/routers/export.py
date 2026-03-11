@@ -17,7 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 
 from docx import Document
 from docx.shared import Pt, Cm
@@ -69,12 +69,20 @@ def _make_filename(case_name: str, visit_date: datetime, ext: str) -> str:
 
 # ---------- PDF ----------
 
-# Register CID font for Chinese
-pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+# Register MicroHei font for better Chinese support
+_FONT_PATH = "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
+try:
+    pdfmetrics.registerFont(TTFont("MicroHei", _FONT_PATH))
+    _DEFAULT_FONT = "MicroHei"
+except Exception:
+    # Fallback to standard CID font if TTF not found
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    _DEFAULT_FONT = "STSong-Light"
 
 _BASE_STYLE = ParagraphStyle(
     "ZhBase",
-    fontName="STSong-Light",
+    fontName=_DEFAULT_FONT,
     fontSize=10,
     leading=14,
 )
@@ -115,10 +123,7 @@ async def export_pdf(
     elements = []
 
     # Header
-    org_name = org.name if org else ""
     vt_label = _visit_type_label(record.visit_type.value)
-    elements.append(Paragraph(org_name, ParagraphStyle("OrgName", parent=_BASE_STYLE, fontSize=11, alignment=2)))
-    elements.append(Spacer(1, 0.3 * cm))
     elements.append(Paragraph(f"{vt_label}紀錄表", title_style))
     elements.append(Spacer(1, 0.5 * cm))
 
@@ -195,13 +200,6 @@ async def export_docx(
         section.bottom_margin = Cm(2)
         section.left_margin = Cm(2)
         section.right_margin = Cm(2)
-
-    # Header: org name
-    org_name = org.name if org else ""
-    p = doc.add_paragraph(org_name)
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    for run in p.runs:
-        run.font.size = Pt(11)
 
     # Title
     vt_label = _visit_type_label(record.visit_type.value)
