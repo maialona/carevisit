@@ -346,7 +346,7 @@ export default function RecordsPage() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           <button
                             onClick={() => navigate(`/records/${r.id}/edit`)}
                             className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"

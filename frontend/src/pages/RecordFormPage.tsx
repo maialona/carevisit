@@ -339,7 +339,7 @@ export default function RecordFormPage() {
           className="mt-5 input-base py-3 text-[16px] md:text-sm resize-y"
         />
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center justify-end gap-2">
           <VoiceRecorder onTranscribed={handleTranscribed} />
           <PhotoUploader onOcrComplete={handleOcrComplete} />
         </div>
@@ -429,7 +429,7 @@ export default function RecordFormPage() {
 
       {/* Action bar */}
       <div className="card flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
             type="button"
             onClick={handleCopy}
@@ -448,6 +448,8 @@ export default function RecordFormPage() {
               </>
             )}
           </button>
+        </div>
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto justify-end items-center">
           {isEdit && id && (
             <ExportDropdown
               recordId={id}
@@ -455,8 +457,6 @@ export default function RecordFormPage() {
               visitDate={visitDate}
             />
           )}
-        </div>
-        <div className="flex gap-3 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => save("draft")}

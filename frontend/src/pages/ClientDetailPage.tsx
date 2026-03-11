@@ -197,13 +197,15 @@ export default function ClientDetailPage() {
                           />
                         </div>
 
-                        <button
-                          onClick={() => navigate(`/records/${r.id}/edit`)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                        >
-                          <FileEdit className="h-4 w-4" />
-                          編輯紀錄
-                        </button>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => navigate(`/records/${r.id}/edit`)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            <FileEdit className="h-4 w-4" />
+                            編輯紀錄
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
