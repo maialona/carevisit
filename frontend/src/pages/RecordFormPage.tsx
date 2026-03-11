@@ -89,13 +89,13 @@ export default function RecordFormPage() {
   }, [autoRefine]);
 
   // --- AI refine ---
-  const doRefine = useCallback(async () => {
+  const doRefine = useCallback(async (formatOverride?: OutputFormat) => {
     if (!rawInput.trim() || refining) return;
     setRefining(true);
     try {
       const result = await aiApi.refine({
         text: rawInput,
-        format: outputFormat,
+        format: formatOverride || outputFormat,
         visit_type: visitType,
         record_id: id,
       });
@@ -127,11 +127,13 @@ export default function RecordFormPage() {
   };
 
   const confirmFormatSwitch = () => {
-    if (pendingFormatRef.current) {
-      setOutputFormat(pendingFormatRef.current);
+    const nextFmt = pendingFormatRef.current;
+    if (nextFmt) {
+      setOutputFormat(nextFmt);
       pendingFormatRef.current = null;
       setShowFormatConfirm(false);
-      setTimeout(() => doRefine(), 50);
+      // Pass the new format directly because outputFormat in this closure is still the old one
+      setTimeout(() => doRefine(nextFmt), 50);
     }
   };
 
