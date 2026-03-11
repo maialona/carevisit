@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
 import { statsApi, type DashboardStats } from "../api/stats";
+import type { VisitRecord } from "../types";
 import {
   Home,
   Phone,
@@ -117,8 +118,20 @@ export default function DashboardPage() {
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="mt-4 flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-surface-50 py-10 text-sm font-medium text-gray-400">
-          紀錄將在此顯示最近的家電訪活動
+        <div className="mt-4 space-y-3">
+          {stats?.recent_records && stats.recent_records.length > 0 ? (
+            stats.recent_records.map((record) => (
+              <ActivityItem
+                key={record.id}
+                record={record}
+                onClick={() => navigate(`/records/${record.id}/edit`)}
+              />
+            ))
+          ) : (
+            <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-surface-50 py-10 text-sm font-medium text-gray-400">
+              {loadingStats ? "載入中..." : "目前尚無近期活動"}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -216,5 +229,53 @@ function QuickAction({
         </p>
       </div>
     </button>
+  );
+}
+
+function ActivityItem({
+  record,
+  onClick,
+}: {
+  record: VisitRecord;
+  onClick: () => void;
+}) {
+  const Icon = record.visit_type === "home" ? Home : Phone;
+  const isCompleted = record.status === "completed";
+
+  return (
+    <div
+      onClick={onClick}
+      className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-100 bg-white p-4 transition-all hover:border-gray-200 hover:shadow-sm"
+    >
+      <div className="flex items-center gap-4">
+        <div
+          className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+            record.visit_type === "home"
+              ? "bg-blue-50 text-blue-600"
+              : "bg-purple-50 text-purple-600"
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-gray-900">{record.case_name}</p>
+          <p className="text-xs font-medium text-gray-500">
+            {record.org_name} · {record.visit_date.slice(0, 10)}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+            isCompleted
+              ? "bg-green-100 text-green-700"
+              : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {isCompleted ? "已完成" : "草稿"}
+        </span>
+        <ArrowRight className="h-4 w-4 text-gray-300" />
+      </div>
+    </div>
   );
 }

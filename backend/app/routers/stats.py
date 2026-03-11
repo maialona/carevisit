@@ -12,11 +12,14 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
+from app.schemas.schemas import VisitRecordResponse
+
 class DashboardStats(BaseModel):
     home_visits_this_month: int
     phone_visits_this_month: int
     pending_records: int
     total_records: int
+    recent_records: list[VisitRecordResponse]
 
 @router.get("", response_model=DashboardStats)
 async def get_dashboard_stats(
@@ -65,9 +68,16 @@ async def get_dashboard_stats(
     )
     total_records = (await db.execute(records_q)).scalar() or 0
 
+    # 5. Recent records (top 5 by visit date or created at)
+    recent_q = select(VisitRecord).where(
+        base_filter
+    ).order_by(VisitRecord.visit_date.desc(), VisitRecord.created_at.desc()).limit(5)
+    recent_records = (await db.execute(recent_q)).scalars().all()
+
     return DashboardStats(
         home_visits_this_month=home_visits,
         phone_visits_this_month=phone_visits,
         pending_records=pending_records,
-        total_records=total_records
+        total_records=total_records,
+        recent_records=recent_records
     )
