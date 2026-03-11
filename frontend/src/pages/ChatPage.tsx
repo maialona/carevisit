@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../store/authStore";
+import { API_URL } from "../api/axios";
 import { useToast } from "../contexts/ToastContext";
 import ChatMessage, {
   type FunctionCallDisplay,
@@ -63,7 +64,7 @@ export default function ChatPage() {
       setStreamingFnCalls([]);
 
       try {
-        const response = await fetch("http://localhost:8000/api/ai/chat", {
+        const response = await fetch(`${API_URL}/ai/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../contexts/ToastContext";
+import { API_URL } from "../../api/axios";
 import ChatMessage, {
   type FunctionCallDisplay,
 } from "./ChatMessage";
@@ -81,7 +82,7 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
       setStreamingFnCalls([]);
 
       try {
-        const response = await fetch("http://localhost:8000/api/ai/chat", {
+        const response = await fetch(`${API_URL}/ai/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
