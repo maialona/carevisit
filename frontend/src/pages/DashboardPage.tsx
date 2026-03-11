@@ -245,36 +245,30 @@ function ActivityItem({
   return (
     <div
       onClick={onClick}
-      className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-100 bg-white p-4 transition-all hover:border-gray-200 hover:shadow-sm"
+      className="group flex cursor-pointer items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 transition-all duration-300 hover:border-gray-300 hover:shadow-card-hover hover:-translate-y-0.5"
     >
       <div className="flex items-center gap-4">
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-            record.visit_type === "home"
-              ? "bg-blue-50 text-blue-600"
-              : "bg-purple-50 text-purple-600"
-          }`}
+          className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-100 text-gray-900 transition-transform duration-300 group-hover:scale-110"
         >
           <Icon className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-sm font-bold text-gray-900">{record.case_name}</p>
-          <p className="text-xs font-medium text-gray-500">
+          <p className="text-sm font-bold text-gray-900 leading-none">{record.case_name}</p>
+          <p className="mt-1.5 text-xs font-semibold text-gray-400">
             {record.org_name} · {record.visit_date.slice(0, 10)}
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <span
-          className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-            isCompleted
-              ? "bg-green-100 text-green-700"
-              : "bg-amber-100 text-amber-700"
-          }`}
+          className={isCompleted ? "badge-green" : "badge-yellow"}
         >
           {isCompleted ? "已完成" : "草稿"}
         </span>
-        <ArrowRight className="h-4 w-4 text-gray-300" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-50 text-gray-300 transition-all group-hover:bg-gray-900 group-hover:text-primary-500">
+          <ArrowRight className="h-4 w-4" />
+        </div>
       </div>
     </div>
   );
