@@ -25,5 +25,5 @@ export const aiApi = {
   },
 
   refine: (params: RefineParams) =>
-    api.post<RefineResult>("/ai/refine", params).then((r) => r.data),
+    api.post<RefineResult>("/ai/refine", params, { timeout: 60000 }).then((r) => r.data),
 };

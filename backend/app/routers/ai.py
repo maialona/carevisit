@@ -93,7 +93,7 @@ OCR_SYSTEM = (
 
 
 def _get_client() -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY, timeout=30.0, max_retries=2)
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY, timeout=60.0, max_retries=2)
 
 
 # ---------- transcribe ----------
@@ -232,15 +232,16 @@ async def refine(
         refined_text = refined_text[:-3].strip()
     tokens_used = response.usage.total_tokens if response.usage else 0
 
-    # Log refinement
-    log = RefinementLog(
-        record_id=body.record_id or uuid.uuid4(),
-        input_text=body.text,
-        output_text=refined_text,
-        format_type=body.format,
-        tokens_used=tokens_used,
-    )
-    db.add(log)
-    await db.flush()
+    # Log refinement only if record_id exists (prevent FK violation on new records)
+    if body.record_id:
+        log = RefinementLog(
+            record_id=body.record_id,
+            input_text=body.text,
+            output_text=refined_text,
+            format_type=body.format,
+            tokens_used=tokens_used,
+        )
+        db.add(log)
+        await db.flush()
 
     return RefineResponse(refined_text=refined_text.strip(), tokens_used=tokens_used)
