@@ -171,11 +171,19 @@ export default function Layout() {
           {/* Mobile AI button in bottom bar */}
           <button
             onClick={() => setChatOpen(true)}
-            className={`flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-colors ${
-              chatOpen ? "text-violet-600" : "text-gray-400"
+            className={`flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors ${
+              chatOpen ? "text-gray-900" : "text-gray-400"
             }`}
           >
-            <Bot className="h-5 w-5" />
+            <div
+              className={`rounded-xl p-1.5 transition-colors ${
+                chatOpen
+                  ? "bg-primary-500 text-gray-900"
+                  : "bg-transparent text-gray-400"
+              }`}
+            >
+              <Bot className="h-5 w-5" />
+            </div>
             <span>AI 助理</span>
           </button>
           {isAdmin && (
