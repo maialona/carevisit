@@ -253,9 +253,9 @@ function ActivityItem({
         >
           <Icon className="h-5 w-5" />
         </div>
-        <div>
-          <p className="text-sm font-bold text-gray-900 leading-none">{record.case_name}</p>
-          <p className="mt-1.5 text-xs font-semibold text-gray-400">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-gray-900 leading-none">{record.case_name}</p>
+          <p className="mt-1.5 truncate text-xs font-semibold text-gray-400">
             {record.org_name} · {record.visit_date.slice(0, 10)}
           </p>
         </div>

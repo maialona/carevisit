@@ -430,13 +430,13 @@ export default function RecordFormPage() {
       </section>
 
       {/* Action bar */}
-      <div className="card flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex gap-2 items-center">
+      <div className="card flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-5">
+        <div className="flex gap-2 items-center justify-center sm:justify-start">
           <button
             type="button"
             onClick={handleCopy}
             disabled={!refinedContent.trim()}
-            className="btn-ghost text-sm disabled:opacity-40"
+            className="btn-ghost text-sm disabled:opacity-40 w-full sm:w-auto"
           >
             {copied ? (
               <>
@@ -451,19 +451,21 @@ export default function RecordFormPage() {
             )}
           </button>
         </div>
-        <div className="flex flex-wrap gap-3 w-full sm:w-auto justify-end items-center">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">
           {isEdit && id && (
-            <ExportDropdown
-              recordId={id}
-              caseName={caseName}
-              visitDate={visitDate}
-            />
+            <div className="col-span-2 grid grid-cols-2 gap-3 sm:flex sm:gap-3">
+              <ExportDropdown
+                recordId={id}
+                caseName={caseName}
+                visitDate={visitDate}
+              />
+            </div>
           )}
           <button
             type="button"
             onClick={() => save("draft")}
             disabled={saving}
-            className="btn-secondary flex-1 sm:flex-none py-3"
+            className="btn-secondary py-3"
           >
             <Save className="h-5 w-5" />
             儲存草稿
@@ -472,7 +474,7 @@ export default function RecordFormPage() {
             type="button"
             onClick={() => save("completed")}
             disabled={saving}
-            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-black tracking-wide text-primary-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-black tracking-wide text-primary-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
           >
             <CheckCircle className="h-5 w-5" />
             完成紀錄

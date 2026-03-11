@@ -51,7 +51,7 @@ export default function ExportDropdown({
         type="button"
         onClick={() => download("pdf")}
         disabled={exporting !== null}
-        className="btn-secondary"
+        className="btn-secondary w-full sm:w-auto"
       >
         {exporting === "pdf" ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -64,7 +64,7 @@ export default function ExportDropdown({
         type="button"
         onClick={() => download("docx")}
         disabled={exporting !== null}
-        className="btn-secondary"
+        className="btn-secondary w-full sm:w-auto"
       >
         {exporting === "docx" ? (
           <Loader2 className="h-4 w-4 animate-spin" />
