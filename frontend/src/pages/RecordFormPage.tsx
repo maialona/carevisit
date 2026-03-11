@@ -398,7 +398,7 @@ export default function RecordFormPage() {
           {/* Refine button */}
           <button
             type="button"
-            onClick={doRefine}
+            onClick={() => doRefine()}
             disabled={refining || !rawInput.trim()}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 py-3 text-sm font-black text-gray-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:brightness-105 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm w-full sm:w-auto min-h-[48px]"
           >
@@ -465,10 +465,11 @@ export default function RecordFormPage() {
             type="button"
             onClick={() => save("draft")}
             disabled={saving}
-            className="btn-secondary py-3"
+            className="btn-secondary py-3 flex-1 sm:flex-none justify-center"
+            title="儲存草稿"
           >
             <Save className="h-5 w-5" />
-            儲存草稿
+            <span className="hidden sm:inline">儲存草稿</span>
           </button>
           <button
             type="button"
