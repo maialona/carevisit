@@ -20,8 +20,6 @@ import {
   CheckCircle,
   Copy,
   Check,
-  Mic,
-  Camera,
   Loader2,
   Keyboard,
 } from "lucide-react";
@@ -332,31 +330,19 @@ export default function RecordFormPage() {
       <section className="card p-6">
         <StepHeader number={2} title="輸入粗稿" />
 
-        <div className="mt-5 mb-5 flex flex-wrap gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
-              <Mic className="h-4 w-4" />
-              語音錄音
-            </div>
-            <VoiceRecorder onTranscribed={handleTranscribed} />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
-              <Camera className="h-4 w-4" />
-              拍照/上傳
-            </div>
-            <PhotoUploader onOcrComplete={handleOcrComplete} />
-          </div>
-        </div>
-
         <textarea
           value={rawInput}
           onChange={(e) => setRawInput(e.target.value)}
           onBlur={handleRawBlur}
-          placeholder="在此輸入家電訪紀錄粗稿...（也可使用上方語音或拍照功能）"
+          placeholder="在此輸入家電訪紀錄粗稿..."
           rows={8}
-          className="input-base py-3 text-[16px] md:text-sm resize-y"
+          className="mt-5 input-base py-3 text-[16px] md:text-sm resize-y"
         />
+
+        <div className="mt-3 flex items-center gap-2">
+          <VoiceRecorder onTranscribed={handleTranscribed} />
+          <PhotoUploader onOcrComplete={handleOcrComplete} />
+        </div>
       </section>
 
       {/* STEP 3: AI refine */}
@@ -494,7 +480,7 @@ export default function RecordFormPage() {
 
       <div className="flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400">
         <Keyboard className="h-4 w-4" />
-        Ctrl+S 儲存草稿 ｜ Ctrl+Enter 完成 ｜ Ctrl+Shift+C 複製內容
+        {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+S 儲存草稿 ｜ {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+Enter 完成 ｜ {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+Shift+C 複製內容
       </div>
 
       <ConfirmModal
