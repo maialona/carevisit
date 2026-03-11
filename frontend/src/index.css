@@ -1,0 +1,64 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans antialiased bg-surface-50 text-gray-900;
+  }
+  
+  /* Override Native Date Picker Accent Colors */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    @apply cursor-pointer opacity-60 hover:opacity-100 transition-opacity;
+  }
+  ::-webkit-datetime-edit-year-field:focus,
+  ::-webkit-datetime-edit-month-field:focus,
+  ::-webkit-datetime-edit-day-field:focus {
+    @apply bg-primary-500 text-gray-900 rounded px-1;
+  }
+}
+
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-gray-200/60 bg-white shadow-card;
+  }
+  .card-hover {
+    @apply transition-transform duration-300 hover:shadow-card-hover hover:-translate-y-1;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-900/10 disabled:opacity-60 !important;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 transition-all duration-200 hover:border-gray-300 hover:bg-surface-100 focus:outline-none focus:ring-4 focus:ring-gray-200/50 !important;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-gray-600 transition-all duration-200 hover:bg-surface-100 hover:text-gray-900 !important;
+  }
+
+  .input-base {
+    @apply w-full rounded-xl border border-gray-200 bg-surface-50 px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:ring-1 focus:ring-gray-900;
+  }
+
+  .badge-green {
+    @apply inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700;
+  }
+  .badge-yellow {
+    @apply inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700;
+  }
+  .badge-gray {
+    @apply inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500;
+  }
+  .badge-blue {
+    @apply inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700;
+  }
+  .badge-purple {
+    @apply inline-flex items-center rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-700;
+  }
+  .badge-red {
+    @apply inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700;
+  }
+}
