@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
@@ -203,7 +204,18 @@ export default function Layout() {
 }
 
 function SidebarAvatar({ userId, name }: { userId: string; name: string }) {
-  const avatar = localStorage.getItem(`carevisit_avatar_${userId}`);
+  const [avatar, setAvatar] = useState<string | null>(localStorage.getItem(`carevisit_avatar_${userId}`));
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail?.userId === userId) {
+        setAvatar(e.detail.avatar);
+      }
+    };
+    window.addEventListener("carevisit-avatar-changed", handler);
+    return () => window.removeEventListener("carevisit-avatar-changed", handler);
+  }, [userId]);
+
   if (avatar) {
     return (
       <img

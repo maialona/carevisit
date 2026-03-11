@@ -38,6 +38,20 @@ export default function UserDropdown({ name, role, userId, onLogout }: UserDropd
     if (userId) {
       setAvatar(getStoredAvatar(userId));
     }
+
+    // Preload avatars to avoid rendering delay
+    AVATARS.forEach((file) => {
+      const img = new Image();
+      img.src = `/avatars/${file}`;
+    });
+
+    const handleGlobalAvatarChange = (e: any) => {
+      if (e.detail?.userId === userId) {
+        setAvatar(e.detail.avatar);
+      }
+    };
+    window.addEventListener("carevisit-avatar-changed", handleGlobalAvatarChange);
+    return () => window.removeEventListener("carevisit-avatar-changed", handleGlobalAvatarChange);
   }, [userId]);
 
   useEffect(() => {
@@ -54,6 +68,9 @@ export default function UserDropdown({ name, role, userId, onLogout }: UserDropd
   const handleSelectAvatar = (file: string) => {
     if (userId) {
       setStoredAvatar(userId, file);
+      window.dispatchEvent(new CustomEvent("carevisit-avatar-changed", { 
+        detail: { userId, avatar: file } 
+      }));
     }
     setAvatar(file);
     setPicking(false);
