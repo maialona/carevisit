@@ -107,17 +107,14 @@ async def export_pdf(
     title_style = ParagraphStyle(
         "ZhTitle", parent=_BASE_STYLE,
         fontSize=16, alignment=1, spaceAfter=12,
-        fontName="STSong-Light",
     )
     heading_style = ParagraphStyle(
         "ZhHeading", parent=_BASE_STYLE,
         fontSize=12, spaceBefore=12, spaceAfter=6,
-        fontName="STSong-Light",
     )
     body_style = ParagraphStyle(
         "ZhBody", parent=_BASE_STYLE,
         fontSize=10, leading=16, spaceAfter=4,
-        fontName="STSong-Light",
     )
 
     elements = []
