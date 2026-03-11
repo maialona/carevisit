@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import uuid
+import urllib.parse
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -168,10 +169,11 @@ async def export_pdf(
     buf.seek(0)
 
     filename = _make_filename(record.case_name, record.visit_date, "pdf")
+    encoded_filename = urllib.parse.quote(filename)
     return StreamingResponse(
         buf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )
 
 
@@ -244,8 +246,9 @@ async def export_docx(
     buf.seek(0)
 
     filename = _make_filename(record.case_name, record.visit_date, "docx")
+    encoded_filename = urllib.parse.quote(filename)
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )

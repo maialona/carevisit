@@ -33,10 +33,10 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(export.router, prefix="/api")
 app.include_router(records.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
