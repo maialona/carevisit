@@ -13,7 +13,7 @@ import app.core.logging as app_logging
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import ai, auth, chat, export, records, users, stats
+from app.routers import ai, auth, chat, clients, export, records, users, stats
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.include_router(stats.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(clients.router, prefix="/api")
 
 
 def decode_bytes(obj):

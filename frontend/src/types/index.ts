@@ -84,6 +84,27 @@ export interface RecordListParams {
   user_id?: string;
 }
 
+// --- Client Card ---
+export interface ClientCard {
+  case_name: string;
+  org_name: string;
+  record_count: number;
+  last_visit_date: string;
+}
+
+export interface ClientListParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}
+
+export interface ClientRecordParams {
+  case_name: string;
+  org_name: string;
+  page?: number;
+  page_size?: number;
+}
+
 // --- AI ---
 export interface RefineParams {
   text: string;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { aiApi } from "../../api/ai";
 import { useToast } from "../../contexts/ToastContext";
-import { Mic, Square, Loader2, Send } from "lucide-react";
+import { Mic, Square, Loader2, Send, X } from "lucide-react";
 
 interface VoiceRecorderProps {
   onTranscribed: (text: string) => void;
@@ -91,6 +91,7 @@ export default function VoiceRecorder({ onTranscribed }: VoiceRecorderProps) {
       const result = await aiApi.transcribe(file);
       onTranscribed(result.text);
       showToast(`語音轉文字完成（${result.duration.toFixed(1)} 秒）`);
+      clear();
     } catch {
       showToast("語音轉文字失敗，請重試", "error");
     } finally {
@@ -98,77 +99,87 @@ export default function VoiceRecorder({ onTranscribed }: VoiceRecorderProps) {
     }
   }, [audioBlob, onTranscribed, showToast]);
 
+  const clear = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setElapsed(0);
+  };
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  if (!supported) {
+  if (!supported) return null;
+
+  // Idle state: compact icon button
+  if (!recording && !audioUrl) {
     return (
-      <p className="text-xs text-gray-400">
-        您的瀏覽器不支援錄音功能
-      </p>
+      <button
+        type="button"
+        onClick={startRecording}
+        disabled={transcribing}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition-all hover:border-gray-300 hover:bg-surface-50 hover:text-gray-900 disabled:opacity-50"
+        title="語音錄音"
+      >
+        <Mic className="h-3.5 w-3.5" />
+        語音錄音
+      </button>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        {!recording ? (
-          <button
-            type="button"
-            onClick={startRecording}
-            disabled={transcribing}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-600 text-white shadow-sm transition-all hover:shadow-md hover:scale-105 active:scale-95 disabled:opacity-50"
-            title="開始錄音"
-          >
-            <Mic className="h-5 w-5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={stopRecording}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white shadow-sm animate-pulse"
-            title="停止錄音"
-          >
-            <Square className="h-4 w-4" />
-          </button>
-        )}
-
-        {recording && (
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-sm font-medium text-red-600">
-              錄音中 {formatTime(elapsed)}
-            </span>
-          </div>
-        )}
+  // Recording state
+  if (recording) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+        <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+        <span className="text-xs font-medium text-red-600">
+          {formatTime(elapsed)}
+        </span>
+        <button
+          type="button"
+          onClick={stopRecording}
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-red-500 text-white transition-colors hover:bg-red-600"
+          title="停止錄音"
+        >
+          <Square className="h-3 w-3" />
+        </button>
       </div>
+    );
+  }
 
-      {audioUrl && !recording && (
-        <div className="flex flex-col gap-2">
-          <audio src={audioUrl} controls className="h-10 w-full max-w-xs" />
-          <button
-            type="button"
-            onClick={handleTranscribe}
-            disabled={transcribing}
-            className="btn-primary w-fit py-2 text-sm"
-          >
-            {transcribing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                轉換中...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                送出轉換
-              </>
-            )}
-          </button>
-        </div>
-      )}
+  // Review state: audio recorded, ready to transcribe
+  return (
+    <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+      <audio src={audioUrl!} controls className="h-8 w-40" />
+      <button
+        type="button"
+        onClick={handleTranscribe}
+        disabled={transcribing}
+        className="inline-flex items-center gap-1 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50"
+      >
+        {transcribing ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            轉換中
+          </>
+        ) : (
+          <>
+            <Send className="h-3 w-3" />
+            轉文字
+          </>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={clear}
+        disabled={transcribing}
+        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+        title="清除"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

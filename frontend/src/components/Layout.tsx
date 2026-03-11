@@ -6,6 +6,7 @@ import ChatPanel, { ChatToggleButton } from "./chat/ChatPanel";
 import {
   LayoutDashboard,
   ClipboardList,
+  Users,
   Bot,
   Settings,
   HeartHandshake,
@@ -22,13 +23,15 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "總覽", icon: LayoutDashboard, to: "/dashboard" },
   { label: "家電訪紀錄", icon: ClipboardList, to: "/records" },
+  { label: "個案卡片", icon: Users, to: "/clients" },
   { label: "帳號管理", icon: Settings, to: "/admin/users", adminOnly: true },
 ];
 
 // Mobile bottom tabs include AI assistant as a toggle
 const mobileNavItems: NavItem[] = [
   { label: "總覽", icon: LayoutDashboard, to: "/dashboard" },
-  { label: "家電訪紀錄", icon: ClipboardList, to: "/records" },
+  { label: "紀錄", icon: ClipboardList, to: "/records" },
+  { label: "個案", icon: Users, to: "/clients" },
 ];
 
 function SidebarLink({ item, isAdmin }: { item: NavItem; isAdmin: boolean }) {

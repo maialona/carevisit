@@ -9,6 +9,8 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import RecordsPage from "./pages/RecordsPage";
 import RecordFormPage from "./pages/RecordFormPage";
+import ClientsPage from "./pages/ClientsPage";
+import ClientDetailPage from "./pages/ClientDetailPage";
 
 import UsersManagementPage from "./pages/admin/UsersManagementPage";
 import AdminRoute from "./components/AdminRoute";
@@ -50,6 +52,8 @@ export default function App() {
               <Route path="/records" element={<RecordsPage />} />
               <Route path="/records/new" element={<RecordFormPage />} />
               <Route path="/records/:id/edit" element={<RecordFormPage />} />
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients/detail" element={<ClientDetailPage />} />
 
               <Route element={<AdminRoute />}>
                 <Route path="/admin/users" element={<UsersManagementPage />} />

@@ -165,3 +165,11 @@ class RefineRequest(BaseModel):
 class RefineResponse(BaseModel):
     refined_text: str
     tokens_used: int
+
+
+# --- Client Card ---
+class ClientCardResponse(BaseModel):
+    case_name: str
+    org_name: str
+    record_count: int
+    last_visit_date: datetime
