@@ -462,124 +462,133 @@ export default function RecordFormPage() {
 
       {/* STEP 3: AI refine */}
       <section className="card p-6">
-        <StepHeader number={3} title="AI 潤飾" />
-
-        <div className="mt-5 mb-5 flex flex-wrap items-center gap-4">
-          {/* Format toggle */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-gray-900">格式</span>
-            <div className="inline-flex rounded-xl border border-gray-200 bg-surface-50 p-1">
-              {(["bullet", "narrative"] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  type="button"
-                  onClick={() => handleFormatSwitch(fmt)}
-                  className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
-                    outputFormat === fmt
-                      ? "bg-gray-900 text-white shadow-sm"
-                      : "text-gray-500 hover:text-gray-900"
-                  }`}
-                >
-                  {fmt === "bullet" ? "條列式" : "敘述式"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Auto-refine toggle */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <span className="text-sm font-bold text-gray-900">自動潤飾</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoRefine}
-              onClick={() => setAutoRefine(!autoRefine)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                autoRefine ? "bg-gray-900" : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 rounded-full transition-transform shadow-sm ${
-                  autoRefine ? "translate-x-[22px] bg-primary-500" : "translate-x-[4px] bg-white"
-                }`}
-              />
-            </button>
-          </label>
-
-          <div className="flex-1" />
-
-          {/* Refine button */}
+        <div className="flex items-center justify-between gap-4">
+          <StepHeader number={3} title="AI 潤飾" />
+          {/* Refine button — hero action, always visible next to header */}
           <button
             type="button"
             onClick={() => doRefine()}
             disabled={refining || !rawInput.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 py-3 text-sm font-black text-gray-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:brightness-105 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm w-full sm:w-auto min-h-[48px]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-5 py-2.5 text-sm font-black text-gray-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:brightness-105 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm min-h-[44px]"
           >
             {refining ? (
               <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                潤飾中...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="hidden sm:inline">潤飾中...</span>
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5" />
-                立即潤飾
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">立即潤飾</span>
               </>
             )}
           </button>
         </div>
 
-        {/* View mode tabs */}
-        {!isStreaming && refinedContent.trim() && (
-          <div className="mb-3 flex items-center gap-1 rounded-xl border border-gray-200 bg-surface-50 p-1 w-fit">
-            {([
-              { mode: "edit" as ViewMode, icon: PenLine, label: "編輯" },
-              { mode: "diff" as ViewMode, icon: GitCompareArrows, label: "差異比對" },
-              { mode: "section" as ViewMode, icon: Columns2, label: "段落潤飾" },
-            ]).map(({ mode, icon: Icon, label }) => (
+        {/* Settings row — compact, secondary visual weight */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+          {/* Format toggle */}
+          <div className="inline-flex rounded-lg border border-gray-200 bg-surface-50 p-0.5">
+            {(["bullet", "narrative"] as const).map((fmt) => (
               <button
-                key={mode}
+                key={fmt}
                 type="button"
-                onClick={() => setViewMode(mode)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  viewMode === mode
+                onClick={() => handleFormatSwitch(fmt)}
+                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
+                  outputFormat === fmt
                     ? "bg-gray-900 text-white shadow-sm"
                     : "text-gray-500 hover:text-gray-900"
                 }`}
               >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
+                {fmt === "bullet" ? "條列式" : "敘述式"}
               </button>
             ))}
           </div>
-        )}
 
-        {/* Rich editor / streaming display / diff view / section refiner */}
-        {isStreaming ? (
-          <div className="rounded-xl border border-primary-200 bg-white p-4">
-            <div className="flex items-center gap-2 mb-3 text-xs font-bold text-primary-600">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              AI 生成中...
+          {/* Divider */}
+          <div className="hidden sm:block h-5 w-px bg-gray-200" />
+
+          {/* Auto-refine toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <span className="text-xs font-medium text-gray-500">自動潤飾</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoRefine}
+              onClick={() => setAutoRefine(!autoRefine)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                autoRefine ? "bg-gray-900" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full transition-transform shadow-sm ${
+                  autoRefine ? "translate-x-[18px] bg-primary-500" : "translate-x-[3px] bg-white"
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+
+        {/* Content panel with integrated view tabs */}
+        <div className="mt-4 rounded-xl border border-gray-200 overflow-hidden">
+          {/* Tab bar — attached to content panel top */}
+          {!isStreaming && refinedContent.trim() && (
+            <div className="flex items-center gap-px border-b border-gray-200 bg-surface-50">
+              {([
+                { mode: "edit" as ViewMode, icon: PenLine, label: "編輯" },
+                { mode: "diff" as ViewMode, icon: GitCompareArrows, label: "差異比對" },
+                { mode: "section" as ViewMode, icon: Columns2, label: "段落潤飾" },
+              ]).map(({ mode, icon: Icon, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold transition-all border-b-2 -mb-px ${
+                    viewMode === mode
+                      ? "border-gray-900 text-gray-900 bg-white"
+                      : "border-transparent text-gray-400 hover:text-gray-600 hover:bg-surface-100"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <div
-              className="prose prose-sm max-w-none min-h-[200px] text-gray-700"
-              dangerouslySetInnerHTML={{ __html: streamingContent }}
-            />
-          </div>
-        ) : viewMode === "diff" ? (
-          <DiffView oldText={rawInput} newHtml={refinedContent} />
-        ) : viewMode === "section" ? (
-          <SectionRefiner
-            refinedContent={refinedContent}
-            rawInput={rawInput}
-            outputFormat={outputFormat}
-            visitType={visitType}
-            onUpdate={setRefinedContent}
-            onToast={showToast}
-          />
-        ) : (
-          <RichEditor content={refinedContent} onChange={setRefinedContent} />
-        )}
+          )}
+
+          {/* Content area */}
+          {isStreaming ? (
+            <div className="bg-white p-4">
+              <div className="flex items-center gap-2 mb-3 text-xs font-bold text-primary-600">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                AI 生成中...
+              </div>
+              <div
+                className="prose prose-sm max-w-none min-h-[200px] text-gray-700"
+                dangerouslySetInnerHTML={{ __html: streamingContent }}
+              />
+            </div>
+          ) : viewMode === "diff" ? (
+            <div className="border-0 [&>div]:border-0 [&>div]:rounded-none">
+              <DiffView oldText={rawInput} newHtml={refinedContent} />
+            </div>
+          ) : viewMode === "section" ? (
+            <div className="[&>div]:border-0 [&>div]:rounded-none">
+              <SectionRefiner
+                refinedContent={refinedContent}
+                rawInput={rawInput}
+                outputFormat={outputFormat}
+                visitType={visitType}
+                onUpdate={setRefinedContent}
+                onToast={showToast}
+              />
+            </div>
+          ) : (
+            <div className="[&>div]:border-0 [&>div]:rounded-none">
+              <RichEditor content={refinedContent} onChange={setRefinedContent} />
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Action bar */}
