@@ -18,6 +18,12 @@ from app.routers import ai, auth, chat, clients, export, records, users, stats
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Ensure avatar column exists (for databases created before avatar feature)
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(50)"
+        ))
     yield
     await engine.dispose()
 
