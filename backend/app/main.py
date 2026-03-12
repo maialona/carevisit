@@ -1,22 +1,36 @@
 import sys
+print("=== APP STARTING ===", flush=True)
 print("=== APP STARTING ===", flush=True, file=sys.stderr)
 
-from contextlib import asynccontextmanager
-from collections.abc import AsyncGenerator
+try:
+    from contextlib import asynccontextmanager
+    from collections.abc import AsyncGenerator
+    print("=== STDLIB IMPORTED ===", flush=True)
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from fastapi.encoders import jsonable_encoder
-from starlette.exceptions import HTTPException
+    from fastapi import FastAPI, Request
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.encoders import jsonable_encoder
+    from starlette.exceptions import HTTPException
+    print("=== FASTAPI IMPORTED ===", flush=True)
 
-# Initialize logging
-import app.core.logging as app_logging
+    # Initialize logging
+    import app.core.logging as app_logging
+    print("=== LOGGING IMPORTED ===", flush=True)
 
-from app.core.config import settings
-from app.core.database import engine
-from app.routers import ai, auth, chat, clients, export, records, users, stats
+    from app.core.config import settings
+    print(f"=== CONFIG LOADED, DB={settings.DATABASE_URL[:30]}... ===", flush=True)
+
+    from app.core.database import engine
+    print("=== DATABASE IMPORTED ===", flush=True)
+
+    from app.routers import ai, auth, chat, clients, export, records, users, stats
+    print("=== ALL ROUTERS IMPORTED ===", flush=True)
+except Exception as e:
+    print(f"=== IMPORT ERROR: {e} ===", flush=True)
+    print(f"=== IMPORT ERROR: {e} ===", flush=True, file=sys.stderr)
+    raise
 
 
 @asynccontextmanager
