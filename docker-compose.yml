@@ -4,11 +4,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8080"
     env_file:
       - ./backend/.env
     environment:
-      - PORT=8000
+      - PORT=8080
       - DATABASE_URL=sqlite+aiosqlite:////app/carevisit.db
       - SECRET_KEY=dev-secret-key-12345
       - FRONTEND_URL=http://localhost,http://localhost:5173,http://127.0.0.1
