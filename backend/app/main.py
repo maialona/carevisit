@@ -11,47 +11,60 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from starlette.exceptions import HTTPException
 
+print("=== FASTAPI IMPORTED ===", flush=True)
+
 # Initialize logging
 import app.core.logging as app_logging
 
 from app.core.config import settings
-from app.core.database import engine
-from app.routers import ai, auth, chat, clients, export, records, users, stats
+
+print(f"=== CONFIG LOADED ===", flush=True)
+
+# Test: import DB but catch errors
+try:
+    from app.core.database import engine
+    print("=== DATABASE IMPORTED ===", flush=True)
+except Exception as e:
+    print(f"=== DATABASE IMPORT ERROR: {e} ===", flush=True)
+    engine = None
+
+try:
+    from app.routers import ai, auth, chat, clients, export, records, users, stats
+    print("=== ALL ROUTERS IMPORTED ===", flush=True)
+    ROUTERS_OK = True
+except Exception as e:
+    print(f"=== ROUTER IMPORT ERROR: {e} ===", flush=True)
+    ROUTERS_OK = False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    print("=== LIFESPAN START ===", flush=True)
     yield
-    await engine.dispose()
+    print("=== LIFESPAN END ===", flush=True)
+    if engine:
+        await engine.dispose()
 
 
 app = FastAPI(title="CareVisit 長照家電訪管理系統", lifespan=lifespan)
 
-_origins = [url.strip() for url in settings.FRONTEND_URL.split(",") if url.strip()]
-# Always include Zeabur deployment URLs regardless of .env override
-for _zeabur_url in [
-    "https://carevisit-squy.zeabur.app",
-    "https://carevisit.zeabur.app",
-]:
-    if _zeabur_url not in _origins:
-        _origins.append(_zeabur_url)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
-app.include_router(records.router, prefix="/api")
-app.include_router(ai.router, prefix="/api")
-app.include_router(stats.router, prefix="/api")
-app.include_router(chat.router, prefix="/api")
-app.include_router(users.router, prefix="/api")
-app.include_router(clients.router, prefix="/api")
+if ROUTERS_OK:
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(export.router, prefix="/api")
+    app.include_router(records.router, prefix="/api")
+    app.include_router(ai.router, prefix="/api")
+    app.include_router(stats.router, prefix="/api")
+    app.include_router(chat.router, prefix="/api")
+    app.include_router(users.router, prefix="/api")
+    app.include_router(clients.router, prefix="/api")
 
 
 def decode_bytes(obj):
@@ -89,6 +102,7 @@ async def http_error_handler(request: Request, exc: HTTPException) -> JSONRespon
 
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    print(f"=== REQUEST ERROR: {exc} ===", flush=True)
     app_logging.logger.error(f"Unexpected error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -100,6 +114,7 @@ async def general_error_handler(request: Request, exc: Exception) -> JSONRespons
 
 
 app_logging.logger.info("CareVisit application started")
+print("=== APP READY ===", flush=True)
 
 
 @app.get("/api/health")
