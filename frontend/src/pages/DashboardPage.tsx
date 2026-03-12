@@ -37,6 +37,20 @@ export default function DashboardPage() {
   const greeting =
     hour < 12 ? "早安" : hour < 18 ? "午安" : "晚安";
 
+  const fullText = "今天似乎是寫家電訪的好日子呢～";
+  const [displayedText, setDisplayedText] = useState("");
+
+  useEffect(() => {
+    setDisplayedText("");
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setDisplayedText(fullText.slice(0, i));
+      if (i >= fullText.length) clearInterval(timer);
+    }, 80);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="animate-fade-in space-y-6">
       {/* Hero greeting banner */}
@@ -45,7 +59,8 @@ export default function DashboardPage() {
           <p className="text-primary-500 text-sm font-semibold tracking-wider">{greeting}，</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">{user?.name || "使用者"}</h2>
           <p className="mt-2 text-sm text-gray-300 font-medium leading-relaxed">
-            今天也辛苦了！以下是你的工作概況。
+            {displayedText}
+            <span className="inline-block w-[2px] h-[1em] bg-gray-300 align-middle ml-0.5 animate-pulse" />
           </p>
         </div>
 
