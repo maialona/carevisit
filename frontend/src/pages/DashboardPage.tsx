@@ -37,19 +37,41 @@ export default function DashboardPage() {
   const greeting =
     hour < 12 ? "早安" : hour < 18 ? "午安" : "晚安";
 
-  const fullText = "今天似乎是寫家電訪的好日子呢～";
+  const messages = [
+    "今天似乎是寫家電訪的好日子呢～",
+    "今天家電訪寫好沒？還不寫爆？",
+    "今天也辛苦了！以下是你的工作概況。",
+    "現在就是瘋狂輸出的時刻！！",
+    "衝啊～要偷懶前至少先把家電訪幹完！",
+    "用AI寫家電訪就是爽～",
+  ];
+
   const [displayedText, setDisplayedText] = useState("");
+  const [msgIndex, setMsgIndex] = useState(() => Math.floor(Math.random() * messages.length));
 
   useEffect(() => {
-    setDisplayedText("");
+    const text = messages[msgIndex];
     let i = 0;
-    const timer = setInterval(() => {
+    setDisplayedText("");
+
+    const typeTimer = setInterval(() => {
       i++;
-      setDisplayedText(fullText.slice(0, i));
-      if (i >= fullText.length) clearInterval(timer);
+      setDisplayedText(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(typeTimer);
+        // Pause, then move to next message
+        setTimeout(() => {
+          let next: number;
+          do {
+            next = Math.floor(Math.random() * messages.length);
+          } while (next === msgIndex && messages.length > 1);
+          setMsgIndex(next);
+        }, 3000);
+      }
     }, 80);
-    return () => clearInterval(timer);
-  }, []);
+
+    return () => clearInterval(typeTimer);
+  }, [msgIndex]);
 
   return (
     <div className="animate-fade-in space-y-6">

@@ -169,6 +169,20 @@ class RefineResponse(BaseModel):
     tokens_used: int
 
 
+class CheckGapsRequest(BaseModel):
+    text: str
+    visit_type: Literal["home", "phone"]
+
+
+class GapItem(BaseModel):
+    section: str
+    hint: str
+
+
+class CheckGapsResponse(BaseModel):
+    gaps: List[GapItem]
+
+
 # --- Client Card ---
 class ClientCardResponse(BaseModel):
     case_name: str

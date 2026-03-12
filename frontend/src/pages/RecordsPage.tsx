@@ -225,8 +225,8 @@ export default function RecordsPage() {
                   key={r.id}
                   className={`group rounded-2xl border bg-white transition-all duration-200 ${
                     isExpanded
-                      ? "border-gray-900/10 shadow-card-hover"
-                      : "border-gray-200/60 shadow-card hover:shadow-card-hover"
+                      ? "border-gray-900/10 shadow-card-hover -translate-y-0.5"
+                      : "border-gray-200/60 shadow-card hover:shadow-card-hover hover:-translate-y-0.5"
                   }`}
                 >
                   {/* Summary row */}

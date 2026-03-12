@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import json
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncOpenAI
 import openai
@@ -14,6 +16,8 @@ from app.core.database import get_db
 from app.deps import get_current_user
 from app.models.models import RefinementLog, User
 from app.schemas.schemas import (
+    CheckGapsRequest,
+    CheckGapsResponse,
     OcrResponse,
     RefineRequest,
     RefineResponse,
@@ -245,3 +249,158 @@ async def refine(
         await db.flush()
 
     return RefineResponse(refined_text=refined_text.strip(), tokens_used=tokens_used)
+
+
+# ---------- refine-stream (SSE) ----------
+
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences that GPT sometimes wraps around output."""
+    text = text.strip()
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1:]
+        text = text.strip()
+    if text.endswith("```"):
+        text = text[:-3].strip()
+    return text
+
+
+@router.post("/refine-stream")
+async def refine_stream(
+    body: RefineRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not body.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="請提供需要潤飾的文字",
+        )
+
+    system_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    visit_label = "家訪" if body.visit_type == "home" else "電訪"
+
+    async def event_generator():
+        client = _get_client()
+        collected = ""
+        tokens_used = 0
+        try:
+            stream = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"以下是{visit_label}粗稿：\n\n{body.text}"},
+                ],
+                max_tokens=2000,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            async for chunk in stream:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    return
+
+                # Usage info comes in the final chunk
+                if chunk.usage:
+                    tokens_used = chunk.usage.total_tokens
+
+                if chunk.choices and chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
+                    collected += text
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': text}, ensure_ascii=False)}\n\n"
+
+            # Send final event with cleaned full text and token count
+            final_text = _strip_code_fences(collected)
+            yield f"data: {json.dumps({'type': 'done', 'content': final_text, 'tokens_used': tokens_used}, ensure_ascii=False)}\n\n"
+
+            # Log refinement
+            if body.record_id:
+                log = RefinementLog(
+                    record_id=body.record_id,
+                    input_text=body.text,
+                    output_text=final_text,
+                    format_type=body.format,
+                    tokens_used=tokens_used,
+                )
+                db.add(log)
+                await db.flush()
+
+        except openai.APIError as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'OpenAI 潤飾錯誤：{str(e)}'}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ---------- check-gaps ----------
+
+GAPS_SYSTEM = (
+    "你是長照督導員的文書助理。請分析以下家電訪粗稿，判斷是否缺少以下重要項目的描述：\n"
+    "1. 個案生心理狀況\n"
+    "2. 居家環境\n"
+    "3. 主要照顧者照顧項\n"
+    "4. 主要照顧者身心狀況\n"
+    "5. 社交狀況\n"
+    "6. 個案服務需求\n"
+    "7. 居服員服務品質\n\n"
+    "請只回傳 JSON 陣列，每個元素是一個物件，包含：\n"
+    '- "section": 缺少的項目名稱（上述 1-7 的名稱）\n'
+    '- "hint": 一句簡短的建議提示（例如「建議補充個案目前的情緒狀態與身體狀況」）\n\n'
+    "如果粗稿內容充分涵蓋所有項目，請回傳空陣列 []。\n"
+    "只輸出 JSON，不要加任何說明文字。"
+)
+
+
+@router.post("/check-gaps", response_model=CheckGapsResponse)
+async def check_gaps(
+    body: CheckGapsRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    if not body.text.strip():
+        return CheckGapsResponse(gaps=[])
+
+    client = _get_client()
+    visit_label = "家訪" if body.visit_type == "home" else "電訪"
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": GAPS_SYSTEM},
+                {"role": "user", "content": f"以下是{visit_label}粗稿：\n\n{body.text}"},
+            ],
+            max_tokens=500,
+            temperature=0.2,
+        )
+    except openai.APIError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OpenAI 錯誤：{str(e)}",
+        )
+
+    raw = response.choices[0].message.content or "[]"
+    # Strip markdown code fences if present
+    raw = raw.strip()
+    if raw.startswith("```"):
+        first_newline = raw.find("\n")
+        if first_newline != -1:
+            raw = raw[first_newline + 1:]
+        raw = raw.strip()
+    if raw.endswith("```"):
+        raw = raw[:-3].strip()
+
+    try:
+        gaps = json.loads(raw)
+    except json.JSONDecodeError:
+        gaps = []
+
+    return CheckGapsResponse(gaps=gaps)

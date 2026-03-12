@@ -127,3 +127,12 @@ export interface TranscribeResult {
 export interface OcrResult {
   text: string;
 }
+
+export interface GapItem {
+  section: string;
+  hint: string;
+}
+
+export interface CheckGapsResult {
+  gaps: GapItem[];
+}

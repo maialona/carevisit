@@ -22,8 +22,10 @@ import {
   Check,
   Loader2,
   Keyboard,
+  AlertTriangle,
+  X,
 } from "lucide-react";
-import type { VisitRecord } from "../types";
+import type { GapItem, VisitRecord } from "../types";
 
 type VisitType = "home" | "phone";
 type OutputFormat = "bullet" | "narrative";
@@ -51,6 +53,12 @@ export default function RecordFormPage() {
   // Step 2
   const [rawInput, setRawInput] = useState("");
 
+  // Step 2 - gaps
+  const [gaps, setGaps] = useState<GapItem[]>([]);
+  const [checkingGaps, setCheckingGaps] = useState(false);
+  const [gapsDismissed, setGapsDismissed] = useState(false);
+  const gapsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Step 3
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(
     "bullet",
@@ -59,6 +67,9 @@ export default function RecordFormPage() {
     return localStorage.getItem("carevisit_auto_refine") === "true";
   });
   const [refinedContent, setRefinedContent] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamControllerRef = useRef<AbortController | null>(null);
   const [copied, setCopied] = useState(false);
   const [showFormatConfirm, setShowFormatConfirm] = useState(false);
   const pendingFormatRef = useRef<OutputFormat | null>(null);
@@ -88,32 +99,86 @@ export default function RecordFormPage() {
     localStorage.setItem("carevisit_auto_refine", String(autoRefine));
   }, [autoRefine]);
 
-  // --- AI refine ---
-  const doRefine = useCallback(async (formatOverride?: OutputFormat) => {
-    if (!rawInput.trim() || refining) return;
-    setRefining(true);
+  // Cleanup stream + gaps timer on unmount
+  useEffect(() => {
+    return () => {
+      streamControllerRef.current?.abort();
+      if (gapsTimerRef.current) clearTimeout(gapsTimerRef.current);
+    };
+  }, []);
+
+  // --- Check gaps ---
+  const doCheckGaps = useCallback(async () => {
+    if (!rawInput.trim() || rawInput.trim().length < 20) {
+      setGaps([]);
+      return;
+    }
+    setCheckingGaps(true);
     try {
-      const result = await aiApi.refine({
+      const result = await aiApi.checkGaps(rawInput, visitType);
+      setGaps(result.gaps);
+      setGapsDismissed(false);
+    } catch {
+      // Silently fail - gaps check is non-critical
+    } finally {
+      setCheckingGaps(false);
+    }
+  }, [rawInput, visitType]);
+
+  // --- AI refine (streaming) ---
+  const doRefine = useCallback((formatOverride?: OutputFormat) => {
+    if (!rawInput.trim() || refining) return;
+
+    // Abort any previous stream
+    streamControllerRef.current?.abort();
+
+    setRefining(true);
+    setIsStreaming(true);
+    setStreamingContent("");
+    setRefinedContent("");
+
+    const controller = aiApi.refineStream(
+      {
         text: rawInput,
         format: formatOverride || outputFormat,
         visit_type: visitType,
         record_id: id,
-      });
-      setRefinedContent(result.refined_text);
-      showToast(`潤飾完成（使用 ${result.tokens_used} tokens）`);
-    } catch {
-      showToast("AI 潤飾失敗，請重試", "error");
-    } finally {
-      setRefining(false);
-    }
+      },
+      // onChunk
+      (text) => {
+        setStreamingContent((prev) => prev + text);
+      },
+      // onDone
+      (fullText, tokensUsed) => {
+        setRefinedContent(fullText);
+        setStreamingContent("");
+        setIsStreaming(false);
+        setRefining(false);
+        showToast(`潤飾完成（使用 ${tokensUsed} tokens）`);
+      },
+      // onError
+      (message) => {
+        setIsStreaming(false);
+        setRefining(false);
+        setStreamingContent("");
+        showToast(message || "AI 潤飾失敗，請重試", "error");
+      },
+    );
+
+    streamControllerRef.current = controller;
   }, [rawInput, outputFormat, visitType, id, refining, showToast]);
 
-  // Auto-refine on blur
+  // Auto-refine on blur + check gaps with debounce
   const handleRawBlur = useCallback(() => {
     if (autoRefine && rawInput.trim()) {
       doRefine();
     }
-  }, [autoRefine, rawInput, doRefine]);
+    // Debounced gap check
+    if (gapsTimerRef.current) clearTimeout(gapsTimerRef.current);
+    gapsTimerRef.current = setTimeout(() => {
+      doCheckGaps();
+    }, 500);
+  }, [autoRefine, rawInput, doRefine, doCheckGaps]);
 
   // Format switch with confirmation
   const handleFormatSwitch = (fmt: OutputFormat) => {
@@ -345,6 +410,45 @@ export default function RecordFormPage() {
           <VoiceRecorder onTranscribed={handleTranscribed} />
           <PhotoUploader onOcrComplete={handleOcrComplete} />
         </div>
+
+        {/* Gap suggestions */}
+        {!gapsDismissed && gaps.length > 0 && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 animate-fade-in">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-amber-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                建議補充以下項目
+              </div>
+              <button
+                type="button"
+                onClick={() => setGapsDismissed(true)}
+                className="rounded-lg p-1 text-amber-400 hover:bg-amber-100 hover:text-amber-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {gaps.map((gap) => (
+                <div
+                  key={gap.section}
+                  className="group relative inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm"
+                >
+                  <span className="font-bold">{gap.section}</span>
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    {gap.hint}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {checkingGaps && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            正在檢查紀錄完整度...
+          </div>
+        )}
       </section>
 
       {/* STEP 3: AI refine */}
@@ -416,13 +520,17 @@ export default function RecordFormPage() {
           </button>
         </div>
 
-        {/* Rich editor */}
-        {refining ? (
-          <div className="animate-pulse space-y-4 rounded-xl border border-gray-200 bg-surface-50 p-6">
-            <div className="h-4 w-3/4 rounded bg-gray-200" />
-            <div className="h-4 w-full rounded bg-gray-200" />
-            <div className="h-4 w-5/6 rounded bg-gray-200" />
-            <div className="h-4 w-2/3 rounded bg-gray-200" />
+        {/* Rich editor / streaming display */}
+        {isStreaming ? (
+          <div className="rounded-xl border border-primary-200 bg-white p-4">
+            <div className="flex items-center gap-2 mb-3 text-xs font-bold text-primary-600">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              AI 生成中...
+            </div>
+            <div
+              className="prose prose-sm max-w-none min-h-[200px] text-gray-700"
+              dangerouslySetInnerHTML={{ __html: streamingContent }}
+            />
           </div>
         ) : (
           <RichEditor content={refinedContent} onChange={setRefinedContent} />
