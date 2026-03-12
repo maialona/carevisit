@@ -102,6 +102,9 @@ async def general_error_handler(request: Request, exc: Exception) -> JSONRespons
     )
 
 
+app_logging.logger.info("CareVisit application started")
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
