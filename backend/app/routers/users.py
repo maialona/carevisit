@@ -37,6 +37,7 @@ async def _enrich_user(user: User, db: AsyncSession) -> UserWithStatsResponse:
         name=user.name,
         email=user.email,
         role=user.role.value,
+        avatar=user.avatar,
         is_active=user.is_active,
         created_at=user.created_at,
         last_record_date=last_record_date,
@@ -139,3 +140,15 @@ async def reset_password(
     await db.flush()
     
     return {"message": "密碼已重設", "new_password": new_password}
+@router.put("/me/avatar", response_model=UserResponse)
+async def update_my_avatar(
+    body: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.avatar is None:
+        raise HTTPException(status_code=400, detail="請提供頭像圖片名稱")
+    
+    current_user.avatar = body.avatar
+    await db.flush()
+    return current_user

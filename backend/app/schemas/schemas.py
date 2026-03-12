@@ -38,6 +38,7 @@ class UserResponse(BaseModel):
     name: str
     email: str
     role: str
+    avatar: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -61,6 +62,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[Literal["admin", "supervisor"]] = None
+    avatar: Optional[str] = None
     is_active: Optional[bool] = None
 
 

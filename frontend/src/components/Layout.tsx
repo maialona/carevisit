@@ -28,7 +28,6 @@ const navItems: NavItem[] = [
   { label: "帳號管理", icon: Settings, to: "/admin/users", adminOnly: true },
 ];
 
-// Mobile bottom tabs include AI assistant as a toggle
 const mobileNavItems: NavItem[] = [
   { label: "總覽", icon: LayoutDashboard, to: "/dashboard" },
   { label: "紀錄", icon: ClipboardList, to: "/records" },
@@ -79,6 +78,32 @@ function BottomTabLink({ item, isAdmin }: { item: NavItem; isAdmin: boolean }) {
   );
 }
 
+function SidebarAvatar({ name }: { name: string }) {
+  const user = useAuthStore((s) => s.user);
+  const [avatar, setAvatar] = useState<string | null>(user?.avatar || null);
+
+  useEffect(() => {
+    if (user?.avatar) {
+      setAvatar(user.avatar);
+    }
+  }, [user?.avatar]);
+
+  if (avatar) {
+    return (
+      <img
+        src={`/avatars/${avatar}`}
+        alt="avatar"
+        className="h-10 w-10 rounded-full object-cover shadow-sm"
+      />
+    );
+  }
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-gray-900 shadow-sm">
+      {name.charAt(0)}
+    </div>
+  );
+}
+
 export default function Layout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -89,7 +114,6 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-surface-50">
-      {/* Desktop sidebar */}
       <aside className="hidden w-64 flex-col border-r border-gray-200/50 bg-white shadow-sidebar md:flex z-10">
         <div className="flex h-16 items-center gap-3 px-6">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-900">
@@ -105,8 +129,6 @@ export default function Layout() {
             <SidebarLink key={item.to} item={item} isAdmin={isAdmin} />
           ))}
         </nav>
-
-        {/* Sidebar AI assistant button */}
         <div className="px-4 pb-4">
           <button
             onClick={() => setChatOpen(true)}
@@ -120,12 +142,10 @@ export default function Layout() {
             <span>AI 助理</span>
           </button>
         </div>
-
-        {/* Sidebar user info */}
         {user && (
           <div className="border-t border-gray-100 px-5 py-4">
             <div className="flex items-center gap-3">
-              <SidebarAvatar userId={user.id} name={user.name} />
+              <SidebarAvatar name={user.name} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-gray-900">{user.name}</p>
                 <p className="text-xs font-medium text-gray-500">{user.role === "admin" ? "管理員" : "督導員"}</p>
@@ -135,9 +155,7 @@ export default function Layout() {
         )}
       </aside>
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col relative">
-        {/* Topbar */}
+      <div className="flex flex-1 flex-col relative text-gray-900">
         <header className="flex h-14 items-center justify-between bg-white px-4 shadow-topbar md:px-6">
           <h2 className="flex items-center gap-2 text-base font-bold text-gray-900 md:hidden">
             <HeartHandshake className="h-5 w-5 text-primary-600" />
@@ -149,30 +167,23 @@ export default function Layout() {
               <UserDropdown
                 name={user.name}
                 role={user.role}
-                userId={user.id}
                 onLogout={logout}
               />
             )}
           </div>
         </header>
 
-        {/* Content + Chat panel row */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Page content */}
           <main className="flex-1 overflow-y-auto p-4 pb-20 md:p-6 md:pb-6">
             <Outlet />
           </main>
-
-          {/* Chat panel (handles desktop inline + mobile overlay internally) */}
           <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
         </div>
 
-        {/* Mobile bottom tab bar */}
         <nav className="fixed inset-x-0 bottom-0 flex border-t border-gray-200/60 bg-white/80 backdrop-blur-lg md:hidden overflow-x-auto safe-area-pb">
           {mobileNavItems.map((item) => (
             <BottomTabLink key={item.to} item={item} isAdmin={isAdmin} />
           ))}
-          {/* Mobile AI button in bottom bar */}
           <button
             onClick={() => setChatOpen(true)}
             className={`flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors ${
@@ -198,36 +209,6 @@ export default function Layout() {
           )}
         </nav>
       </div>
-
-    </div>
-  );
-}
-
-function SidebarAvatar({ userId, name }: { userId: string; name: string }) {
-  const [avatar, setAvatar] = useState<string | null>(localStorage.getItem(`carevisit_avatar_${userId}`));
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      if (e.detail?.userId === userId) {
-        setAvatar(e.detail.avatar);
-      }
-    };
-    window.addEventListener("carevisit-avatar-changed", handler);
-    return () => window.removeEventListener("carevisit-avatar-changed", handler);
-  }, [userId]);
-
-  if (avatar) {
-    return (
-      <img
-        src={`/avatars/${avatar}`}
-        alt="avatar"
-        className="h-10 w-10 rounded-full object-cover shadow-sm"
-      />
-    );
-  }
-  return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-gray-900 shadow-sm">
-      {name.charAt(0)}
     </div>
   );
 }

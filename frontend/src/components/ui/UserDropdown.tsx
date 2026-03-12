@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, Shield, Pencil } from "lucide-react";
+import { useAuthStore } from "../../store/authStore";
+import api from "../../api/axios";
 
 const AVATARS = [
   "cat.png",
@@ -13,30 +15,23 @@ const AVATARS = [
   "tiger.png",
 ];
 
-function getStoredAvatar(userId: string): string | null {
-  return localStorage.getItem(`carevisit_avatar_${userId}`);
-}
-
-function setStoredAvatar(userId: string, avatar: string) {
-  localStorage.setItem(`carevisit_avatar_${userId}`, avatar);
-}
-
 interface UserDropdownProps {
   name: string;
   role: string;
-  userId?: string;
   onLogout: () => void;
 }
 
-export default function UserDropdown({ name, role, userId, onLogout }: UserDropdownProps) {
+export default function UserDropdown({ name, role, onLogout }: UserDropdownProps) {
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const [open, setOpen] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(user?.avatar || null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (userId) {
-      setAvatar(getStoredAvatar(userId));
+    if (user?.avatar) {
+      setAvatar(user.avatar);
     }
 
     // Preload avatars to avoid rendering delay
@@ -44,15 +39,7 @@ export default function UserDropdown({ name, role, userId, onLogout }: UserDropd
       const img = new Image();
       img.src = `/avatars/${file}`;
     });
-
-    const handleGlobalAvatarChange = (e: any) => {
-      if (e.detail?.userId === userId) {
-        setAvatar(e.detail.avatar);
-      }
-    };
-    window.addEventListener("carevisit-avatar-changed", handleGlobalAvatarChange);
-    return () => window.removeEventListener("carevisit-avatar-changed", handleGlobalAvatarChange);
-  }, [userId]);
+  }, [user?.avatar]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -65,15 +52,16 @@ export default function UserDropdown({ name, role, userId, onLogout }: UserDropd
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleSelectAvatar = (file: string) => {
-    if (userId) {
-      setStoredAvatar(userId, file);
-      window.dispatchEvent(new CustomEvent("carevisit-avatar-changed", { 
-        detail: { userId, avatar: file } 
-      }));
+  const handleSelectAvatar = async (file: string) => {
+    if (!user) return;
+    try {
+      await api.put("/users/me/avatar", { avatar: file });
+      setAvatar(file);
+      setUser({ ...user, avatar: file });
+      setPicking(false);
+    } catch (error) {
+      console.error("Failed to update avatar", error);
     }
-    setAvatar(file);
-    setPicking(false);
   };
 
   const initial = name.charAt(0).toUpperCase();
