@@ -7,6 +7,8 @@ import { useToast } from "../contexts/ToastContext";
 import VoiceRecorder from "../components/records/VoiceRecorder";
 import PhotoUploader from "../components/records/PhotoUploader";
 import RichEditor from "../components/records/RichEditor";
+import DiffView from "../components/records/DiffView";
+import SectionRefiner from "../components/records/SectionRefiner";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import ExportDropdown from "../components/records/ExportDropdown";
 import DatePicker from "react-datepicker";
@@ -24,6 +26,9 @@ import {
   Keyboard,
   AlertTriangle,
   X,
+  GitCompareArrows,
+  Columns2,
+  PenLine,
 } from "lucide-react";
 import type { GapItem, VisitRecord } from "../types";
 
@@ -73,6 +78,10 @@ export default function RecordFormPage() {
   const [copied, setCopied] = useState(false);
   const [showFormatConfirm, setShowFormatConfirm] = useState(false);
   const pendingFormatRef = useRef<OutputFormat | null>(null);
+
+  // View mode: "edit" = RichEditor, "diff" = diff comparison, "section" = paragraph-level refine
+  type ViewMode = "edit" | "diff" | "section";
+  const [viewMode, setViewMode] = useState<ViewMode>("edit");
 
 
   // Load existing record for edit
@@ -520,7 +529,32 @@ export default function RecordFormPage() {
           </button>
         </div>
 
-        {/* Rich editor / streaming display */}
+        {/* View mode tabs */}
+        {!isStreaming && refinedContent.trim() && (
+          <div className="mb-3 flex items-center gap-1 rounded-xl border border-gray-200 bg-surface-50 p-1 w-fit">
+            {([
+              { mode: "edit" as ViewMode, icon: PenLine, label: "編輯" },
+              { mode: "diff" as ViewMode, icon: GitCompareArrows, label: "差異比對" },
+              { mode: "section" as ViewMode, icon: Columns2, label: "段落潤飾" },
+            ]).map(({ mode, icon: Icon, label }) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  viewMode === mode
+                    ? "bg-gray-900 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Rich editor / streaming display / diff view / section refiner */}
         {isStreaming ? (
           <div className="rounded-xl border border-primary-200 bg-white p-4">
             <div className="flex items-center gap-2 mb-3 text-xs font-bold text-primary-600">
@@ -532,6 +566,17 @@ export default function RecordFormPage() {
               dangerouslySetInnerHTML={{ __html: streamingContent }}
             />
           </div>
+        ) : viewMode === "diff" ? (
+          <DiffView oldText={rawInput} newHtml={refinedContent} />
+        ) : viewMode === "section" ? (
+          <SectionRefiner
+            refinedContent={refinedContent}
+            rawInput={rawInput}
+            outputFormat={outputFormat}
+            visitType={visitType}
+            onUpdate={setRefinedContent}
+            onToast={showToast}
+          />
         ) : (
           <RichEditor content={refinedContent} onChange={setRefinedContent} />
         )}

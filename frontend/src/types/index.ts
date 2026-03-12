@@ -136,3 +136,15 @@ export interface GapItem {
 export interface CheckGapsResult {
   gaps: GapItem[];
 }
+
+export interface RefineSectionParams {
+  section_html: string;
+  context?: string;
+  format: "bullet" | "narrative";
+  visit_type: "home" | "phone";
+}
+
+export interface RefineSectionResult {
+  refined_html: string;
+  tokens_used: number;
+}

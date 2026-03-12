@@ -21,6 +21,8 @@ from app.schemas.schemas import (
     OcrResponse,
     RefineRequest,
     RefineResponse,
+    RefineSectionRequest,
+    RefineSectionResponse,
     TranscribeResponse,
 )
 
@@ -404,3 +406,56 @@ async def check_gaps(
         gaps = []
 
     return CheckGapsResponse(gaps=gaps)
+
+
+# ---------- refine-section ----------
+
+SECTION_SYSTEM = (
+    "你是長照督導員的文書助理。請僅針對以下指定段落進行潤飾改寫，"
+    "使用繁體中文，語氣專業簡潔。\n\n"
+    "重要規則：\n"
+    "1. 只輸出該段落的改寫結果，不要輸出其他段落\n"
+    "2. 保留原始的 HTML 標籤結構（h4/h5/ul/li/p 等）\n"
+    "3. 不要輸出 markdown，直接輸出 HTML\n"
+    "4. 可以適度補充細節或改善語句流暢度，但不要改變原意\n"
+)
+
+
+@router.post("/refine-section", response_model=RefineSectionResponse)
+async def refine_section(
+    body: RefineSectionRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    if not body.section_html.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="請提供需要潤飾的段落",
+        )
+
+    fmt_hint = "條列式（使用 <ul><li>）" if body.format == "bullet" else "敘述式（使用 <p>）"
+    visit_label = "家訪" if body.visit_type == "home" else "電訪"
+
+    user_content = f"格式要求：{fmt_hint}\n\n以下是需要重新潤飾的{visit_label}紀錄段落：\n\n{body.section_html}"
+    if body.context:
+        user_content += f"\n\n以下是完整粗稿供參考上下文（不要潤飾這部分）：\n\n{body.context}"
+
+    client = _get_client()
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": SECTION_SYSTEM},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=1000,
+        )
+    except openai.APIError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OpenAI 錯誤：{str(e)}",
+        )
+
+    result = _strip_code_fences(response.choices[0].message.content or "")
+    tokens_used = response.usage.total_tokens if response.usage else 0
+
+    return RefineSectionResponse(refined_html=result, tokens_used=tokens_used)

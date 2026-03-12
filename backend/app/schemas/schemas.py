@@ -169,6 +169,18 @@ class RefineResponse(BaseModel):
     tokens_used: int
 
 
+class RefineSectionRequest(BaseModel):
+    section_html: str
+    context: str = ""
+    format: Literal["bullet", "narrative"]
+    visit_type: Literal["home", "phone"]
+
+
+class RefineSectionResponse(BaseModel):
+    refined_html: str
+    tokens_used: int
+
+
 class CheckGapsRequest(BaseModel):
     text: str
     visit_type: Literal["home", "phone"]

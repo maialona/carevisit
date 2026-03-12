@@ -2,6 +2,8 @@ import api, { API_URL } from "./axios";
 import type {
   RefineParams,
   RefineResult,
+  RefineSectionParams,
+  RefineSectionResult,
   TranscribeResult,
   OcrResult,
   CheckGapsResult,
@@ -104,5 +106,10 @@ export const aiApi = {
   checkGaps: (text: string, visitType: "home" | "phone") =>
     api
       .post<CheckGapsResult>("/ai/check-gaps", { text, visit_type: visitType }, { timeout: 30000 })
+      .then((r) => r.data),
+
+  refineSection: (params: RefineSectionParams) =>
+    api
+      .post<RefineSectionResult>("/ai/refine-section", params, { timeout: 60000 })
       .then((r) => r.data),
 };
