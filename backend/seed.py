@@ -1,7 +1,7 @@
 """Seed script — inserts test organization + admin/supervisor accounts."""
 import asyncio
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session, engine, Base
@@ -13,6 +13,12 @@ async def seed() -> None:
     # Create tables if they don't exist (for quick dev setup)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Add avatar column if missing (for databases created before avatar feature)
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(50)"
+        ))
 
     async with async_session() as session:  # type: AsyncSession
         # Check if already seeded
