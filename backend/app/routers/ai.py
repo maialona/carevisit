@@ -92,6 +92,13 @@ NARRATIVE_SYSTEM = (
     "不要輸出 markdown。"
 )
 
+TONE_INSTRUCTIONS = {
+    "professional": "語氣正式專業，用詞精確。",
+    "warm": "語氣溫暖關懷，展現同理心，適度使用較柔和的表達方式。",
+    "concise": "語氣簡潔扼要，去除冗詞贅字，每句話都直指重點。",
+    "detailed": "語氣詳盡完整，盡量補充觀察細節與具體描述，讓紀錄內容更加豐富。",
+}
+
 OCR_SYSTEM = (
     "你是一個 OCR 助理，請完整辨識圖片中的所有文字，"
     "保留原始段落結構，以繁體中文輸出，不要加任何說明。"
@@ -206,7 +213,9 @@ async def refine(
             detail="請提供需要潤飾的文字",
         )
 
-    system_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
+    system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
 
     client = _get_client()
@@ -225,17 +234,7 @@ async def refine(
             detail=f"OpenAI 潤飾錯誤：{str(e)}",
         )
 
-    refined_text = response.choices[0].message.content or ""
-    # Strip markdown code fences (```html ... ```) that GPT sometimes wraps around output
-    refined_text = refined_text.strip()
-    if refined_text.startswith("```"):
-        # Remove opening fence (e.g. ```html or ```)
-        first_newline = refined_text.find("\n")
-        if first_newline != -1:
-            refined_text = refined_text[first_newline + 1:]
-        refined_text = refined_text.strip()
-    if refined_text.endswith("```"):
-        refined_text = refined_text[:-3].strip()
+    refined_text = _strip_code_fences(response.choices[0].message.content or "")
     tokens_used = response.usage.total_tokens if response.usage else 0
 
     # Log refinement only if record_id exists (prevent FK violation on new records)
@@ -281,7 +280,9 @@ async def refine_stream(
             detail="請提供需要潤飾的文字",
         )
 
-    system_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
+    system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
 
     async def event_generator():
@@ -433,7 +434,9 @@ async def refine_section(
         )
 
     fmt_hint = "條列式（使用 <ul><li>）" if body.format == "bullet" else "敘述式（使用 <p>）"
+    tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
+    section_system = f"{SECTION_SYSTEM}\n\n語氣風格要求：{tone_hint}"
 
     user_content = f"格式要求：{fmt_hint}\n\n以下是需要重新潤飾的{visit_label}紀錄段落：\n\n{body.section_html}"
     if body.context:
@@ -444,7 +447,7 @@ async def refine_section(
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": SECTION_SYSTEM},
+                {"role": "system", "content": section_system},
                 {"role": "user", "content": user_content},
             ],
             max_tokens=1000,

@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { aiApi } from "../../api/ai";
+import type { ToneStyle } from "../../types";
 
 interface SectionRefinerProps {
   refinedContent: string;
   rawInput: string;
   outputFormat: "bullet" | "narrative";
   visitType: "home" | "phone";
+  tone: ToneStyle;
   onUpdate: (newHtml: string) => void;
   onToast: (msg: string, type?: "success" | "error") => void;
 }
@@ -40,6 +42,7 @@ export default function SectionRefiner({
   rawInput,
   outputFormat,
   visitType,
+  tone,
   onUpdate,
   onToast,
 }: SectionRefinerProps) {
@@ -63,6 +66,7 @@ export default function SectionRefiner({
           context: rawInput,
           format: outputFormat,
           visit_type: visitType,
+          tone,
         });
 
         // Replace the section in the full content
@@ -79,7 +83,7 @@ export default function SectionRefiner({
         setRefiningId(null);
       }
     },
-    [refiningId, rawInput, outputFormat, visitType, onUpdate, onToast],
+    [refiningId, rawInput, outputFormat, visitType, tone, onUpdate, onToast],
   );
 
   if (!refinedContent.trim()) {

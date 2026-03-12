@@ -107,10 +107,13 @@ export interface ClientRecordParams {
 }
 
 // --- AI ---
+export type ToneStyle = "professional" | "warm" | "concise" | "detailed";
+
 export interface RefineParams {
   text: string;
   format: "bullet" | "narrative";
   visit_type: "home" | "phone";
+  tone?: ToneStyle;
   record_id?: string;
 }
 
@@ -142,6 +145,7 @@ export interface RefineSectionParams {
   context?: string;
   format: "bullet" | "narrative";
   visit_type: "home" | "phone";
+  tone?: ToneStyle;
 }
 
 export interface RefineSectionResult {

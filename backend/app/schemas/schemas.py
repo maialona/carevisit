@@ -161,6 +161,7 @@ class RefineRequest(BaseModel):
     text: str
     format: Literal["bullet", "narrative"]
     visit_type: Literal["home", "phone"]
+    tone: Literal["professional", "warm", "concise", "detailed"] = "professional"
     record_id: Optional[uuid.UUID] = None
 
 
@@ -174,6 +175,7 @@ class RefineSectionRequest(BaseModel):
     context: str = ""
     format: Literal["bullet", "narrative"]
     visit_type: Literal["home", "phone"]
+    tone: Literal["professional", "warm", "concise", "detailed"] = "professional"
 
 
 class RefineSectionResponse(BaseModel):

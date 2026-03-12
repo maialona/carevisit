@@ -30,7 +30,7 @@ import {
   Columns2,
   PenLine,
 } from "lucide-react";
-import type { GapItem, VisitRecord } from "../types";
+import type { GapItem, ToneStyle, VisitRecord } from "../types";
 
 type VisitType = "home" | "phone";
 type OutputFormat = "bullet" | "narrative";
@@ -68,6 +68,9 @@ export default function RecordFormPage() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(
     "bullet",
   );
+  const [tone, setTone] = useState<ToneStyle>(() => {
+    return (localStorage.getItem("carevisit_tone") as ToneStyle) || "professional";
+  });
   const [autoRefine, setAutoRefine] = useState(() => {
     return localStorage.getItem("carevisit_auto_refine") === "true";
   });
@@ -103,10 +106,13 @@ export default function RecordFormPage() {
       .finally(() => setLoading(false));
   }, [id, showToast]);
 
-  // Persist autoRefine to localStorage
+  // Persist autoRefine + tone to localStorage
   useEffect(() => {
     localStorage.setItem("carevisit_auto_refine", String(autoRefine));
   }, [autoRefine]);
+  useEffect(() => {
+    localStorage.setItem("carevisit_tone", tone);
+  }, [tone]);
 
   // Cleanup stream + gaps timer on unmount
   useEffect(() => {
@@ -151,6 +157,7 @@ export default function RecordFormPage() {
         text: rawInput,
         format: formatOverride || outputFormat,
         visit_type: visitType,
+        tone,
         record_id: id,
       },
       // onChunk
@@ -175,7 +182,7 @@ export default function RecordFormPage() {
     );
 
     streamControllerRef.current = controller;
-  }, [rawInput, outputFormat, visitType, id, refining, showToast]);
+  }, [rawInput, outputFormat, visitType, tone, id, refining, showToast]);
 
   // Auto-refine on blur + check gaps with debounce
   const handleRawBlur = useCallback(() => {
@@ -486,7 +493,7 @@ export default function RecordFormPage() {
         </div>
 
         {/* Settings row — compact, secondary visual weight */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Format toggle */}
           <div className="inline-flex rounded-lg border border-gray-200 bg-surface-50 p-0.5">
             {(["bullet", "narrative"] as const).map((fmt) => (
@@ -505,7 +512,31 @@ export default function RecordFormPage() {
             ))}
           </div>
 
-          {/* Divider */}
+          <div className="hidden sm:block h-5 w-px bg-gray-200" />
+
+          {/* Tone selector */}
+          <div className="inline-flex rounded-lg border border-gray-200 bg-surface-50 p-0.5">
+            {([
+              { value: "professional" as ToneStyle, label: "專業" },
+              { value: "warm" as ToneStyle, label: "溫暖" },
+              { value: "concise" as ToneStyle, label: "精簡" },
+              { value: "detailed" as ToneStyle, label: "詳盡" },
+            ]).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTone(value)}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-bold transition-all ${
+                  tone === value
+                    ? "bg-gray-900 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="hidden sm:block h-5 w-px bg-gray-200" />
 
           {/* Auto-refine toggle */}
@@ -579,6 +610,7 @@ export default function RecordFormPage() {
                 rawInput={rawInput}
                 outputFormat={outputFormat}
                 visitType={visitType}
+                tone={tone}
                 onUpdate={setRefinedContent}
                 onToast={showToast}
               />
