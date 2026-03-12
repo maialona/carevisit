@@ -24,15 +24,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="CareVisit 長照家電訪管理系統", lifespan=lifespan)
 
-# Build CORS origins from settings + hardcoded Zeabur URLs as safety net
-_origins = [url.strip() for url in settings.FRONTEND_URL.split(",") if url.strip()]
-for _zeabur_url in ["https://carevisit-squy.zeabur.app", "https://carevisit.zeabur.app"]:
-    if _zeabur_url not in _origins:
-        _origins.append(_zeabur_url)
-
+# CORS: allow all origins for Zeabur deployment compatibility
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
