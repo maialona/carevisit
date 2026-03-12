@@ -4,7 +4,11 @@ import axios, {
 } from "axios";
 
 // @ts-ignore
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+export const API_URL = import.meta.env.VITE_API_URL || (
+  typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? "https://carevisit.zeabur.app/api"
+    : "http://localhost:8000/api"
+);
 
 const api = axios.create({
   baseURL: API_URL,
