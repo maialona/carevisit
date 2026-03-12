@@ -422,16 +422,16 @@ export default function RecordFormPage() {
 
         {/* Gap suggestions */}
         {!gapsDismissed && gaps.length > 0 && (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 animate-fade-in">
+          <div className="mt-4 rounded-xl border border-gray-200 bg-surface-50 p-4 animate-fade-in">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-bold text-amber-800">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 text-gray-400" />
                 建議補充以下項目
               </div>
               <button
                 type="button"
                 onClick={() => setGapsDismissed(true)}
-                className="rounded-lg p-1 text-amber-400 hover:bg-amber-100 hover:text-amber-600 transition-colors"
+                className="rounded-lg p-1 text-gray-400 hover:bg-surface-100 hover:text-gray-600 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -440,10 +440,10 @@ export default function RecordFormPage() {
               {gaps.map((gap) => (
                 <div
                   key={gap.section}
-                  className="group relative inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm"
+                  className="group relative inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-primary-500 shadow-sm"
                 >
-                  <span className="font-bold">{gap.section}</span>
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  {gap.section}
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                     {gap.hint}
                     <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                   </div>
