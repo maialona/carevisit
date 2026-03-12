@@ -126,6 +126,7 @@ async def deactivate_user(
 @router.post("/{user_id}/reset-password")
 async def reset_password(
     user_id: uuid.UUID,
+    body: dict | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -134,12 +135,51 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="使用者不存在")
 
-    alphabet = string.ascii_letters + string.digits
-    new_password = "".join(secrets.choice(alphabet) for _ in range(12))
+    custom_password = body.get("password") if body else None
+    if custom_password:
+        if len(custom_password) < 8:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="密碼至少需要 8 個字元")
+        new_password = custom_password
+    else:
+        alphabet = string.ascii_letters + string.digits
+        new_password = "".join(secrets.choice(alphabet) for _ in range(12))
+
     user.hashed_password = hash_password(new_password)
     await db.flush()
-    
+
     return {"message": "密碼已重設", "new_password": new_password}
+
+
+@router.delete("/{user_id}/permanent", status_code=status.HTTP_200_OK)
+async def delete_user_permanent(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能刪除自己的帳號")
+
+    result = await db.execute(select(User).where(User.id == user_id, User.org_id == current_user.org_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="使用者不存在")
+
+    # Check if user has any visit records
+    record_count = await db.execute(
+        select(func.count()).select_from(VisitRecord).where(VisitRecord.user_id == user_id)
+    )
+    count = record_count.scalar() or 0
+    if count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"該使用者有 {count} 筆訪視紀錄，無法刪除。請改用停用功能。",
+        )
+
+    await db.delete(user)
+    await db.flush()
+    return {"message": "帳號已永久刪除"}
+
+
 @router.put("/me/avatar", response_model=UserResponse)
 async def update_my_avatar(
     body: UserUpdate,

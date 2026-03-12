@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../../api/axios";
 import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ui/ConfirmModal";
-import { Plus, Copy, X, Loader2, Pencil, KeyRound, UserX } from "lucide-react";
+import { Plus, Copy, X, Loader2, Pencil, KeyRound, UserX, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -25,6 +25,13 @@ export default function UsersManagementPage() {
 
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [userToDeactivate, setUserToDeactivate] = useState<User | null>(null);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [customPassword, setCustomPassword] = useState("");
 
   const [newPassword, setNewPassword] = useState("");
 
@@ -58,12 +65,31 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleResetPassword = async (user: User) => {
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser) return;
     try {
-      const { data } = await api.post(`/users/${user.id}/reset-password`);
+      const payload = customPassword.length >= 8 ? { password: customPassword } : undefined;
+      const { data } = await api.post(`/users/${resetPasswordUser.id}/reset-password`, payload);
       setNewPassword(data.new_password);
-    } catch {
-      showToast("重設密碼失敗", "error");
+      setShowResetPasswordModal(false);
+      setResetPasswordUser(null);
+      setCustomPassword("");
+    } catch (e: any) {
+      showToast(e.response?.data?.detail || "重設密碼失敗", "error");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      await api.delete(`/users/${userToDelete.id}/permanent`);
+      showToast(`已永久刪除 ${userToDelete.name}`);
+      fetchUsers();
+    } catch (e: any) {
+      showToast(e.response?.data?.detail || "刪除失敗", "error");
+    } finally {
+      setShowDeleteConfirm(false);
+      setUserToDelete(null);
     }
   };
 
@@ -148,20 +174,29 @@ export default function UsersManagementPage() {
                       >
                          <Pencil className="h-4 w-4" />
                       </button>
-                      <button 
-                         onClick={() => handleResetPassword(u)} 
+                      <button
+                         onClick={() => { setResetPasswordUser(u); setCustomPassword(""); setShowResetPasswordModal(true); }}
                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
                          title="重設密碼"
                       >
                          <KeyRound className="h-4 w-4" />
                       </button>
                       {u.is_active && (
-                        <button 
-                           onClick={() => { setUserToDeactivate(u); setShowDeactivateConfirm(true); }} 
+                        <button
+                           onClick={() => { setUserToDeactivate(u); setShowDeactivateConfirm(true); }}
                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-700"
                            title="停用"
                         >
                            <UserX className="h-4 w-4" />
+                        </button>
+                      )}
+                      {!u.is_active && u.record_count === 0 && (
+                        <button
+                           onClick={() => { setUserToDelete(u); setShowDeleteConfirm(true); }}
+                           className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-700"
+                           title="永久刪除"
+                        >
+                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -233,6 +268,48 @@ export default function UsersManagementPage() {
         </div>
       )}
 
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal animate-scale-in">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">重設密碼</h3>
+            <p className="text-sm text-gray-500 mb-4">為「{resetPasswordUser?.name}」設定新密碼</p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">自訂密碼 (最少 8 字元)</label>
+                <input
+                  type="text"
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value)}
+                  placeholder="留空則自動產生隨機密碼"
+                  className="input-base"
+                />
+                {customPassword.length > 0 && customPassword.length < 8 && (
+                  <p className="mt-1 text-xs text-red-500">密碼至少需要 8 個字元</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowResetPasswordModal(false); setResetPasswordUser(null); setCustomPassword(""); }}
+                  className="btn-secondary"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={customPassword.length > 0 && customPassword.length < 8}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  確認重設
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         open={showDeactivateConfirm}
         title="停用帳號"
@@ -241,6 +318,16 @@ export default function UsersManagementPage() {
         danger
         onConfirm={handleDeactivate}
         onCancel={() => setShowDeactivateConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        title="永久刪除帳號"
+        message={`確定要永久刪除「${userToDelete?.name}」的帳號嗎？此操作無法復原。`}
+        confirmLabel="永久刪除"
+        danger
+        onConfirm={handleDeleteUser}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );
