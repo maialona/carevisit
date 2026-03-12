@@ -1,14 +1,15 @@
 import logging
-import sys
+import os
 
-# Only stdout - Zeabur captures stdout/stderr for runtime logs
+os.makedirs("logs", exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.StreamHandler(sys.stdout)
-    ],
-    force=True
+        logging.StreamHandler(),
+        logging.FileHandler("logs/app.log", encoding="utf-8")
+    ]
 )
 
 logger = logging.getLogger("carevisit")
