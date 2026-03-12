@@ -1,3 +1,6 @@
+import sys
+print("=== APP STARTING ===", flush=True, file=sys.stderr)
+
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
