@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     OPENAI_API_KEY: str = ""
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = "http://localhost:5173,https://carevisit-squy.zeabur.app,https://carevisit.zeabur.app"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
