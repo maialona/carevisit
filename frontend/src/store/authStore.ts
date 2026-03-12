@@ -10,6 +10,7 @@ interface AuthStore {
   logout: () => void;
   refreshToken: () => Promise<void>;
   fetchUser: () => Promise<void>;
+  setUser: (user: User | null) => void;
   hydrate: () => void;
 }
 
@@ -62,6 +63,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  setUser: (user: User | null) => {
+    set({ user });
   },
 
   hydrate: () => {
