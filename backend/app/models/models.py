@@ -63,8 +63,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     organization: Mapped["Organization"] = relationship(back_populates="users")
-    visit_records: Mapped[list["VisitRecord"]] = relationship(back_populates="user")
-    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user")
+    visit_records: Mapped[list["VisitRecord"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class VisitRecord(Base):
     __tablename__ = "visit_records"
