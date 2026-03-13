@@ -162,17 +162,25 @@ async def import_preview(
 
     try:
         import io
-        import openpyxl
-
         content = await file.read()
-        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-        ws = wb.active
+        is_xls = file.filename.endswith(".xls")
+        all_rows: list[list] = []
 
-        rows_iter = ws.iter_rows(values_only=True)
-        header_row = next(rows_iter, None)
-        if not header_row:
+        if is_xls:
+            import xlrd
+            wb = xlrd.open_workbook(file_contents=content)
+            ws = wb.sheet_by_index(0)
+            all_rows = [[ws.cell_value(r, c) for c in range(ws.ncols)] for r in range(ws.nrows)]
+        else:
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            all_rows = [list(row) for row in ws.iter_rows(values_only=True)]
+
+        if not all_rows:
             raise HTTPException(status_code=400, detail="Excel 檔案為空")
 
+        header_row = all_rows[0]
         headers = [str(h).strip() if h is not None else "" for h in header_row]
         col_index: dict[str, int] = {}
         for i, h in enumerate(headers):
@@ -185,13 +193,13 @@ async def import_preview(
         parsed_rows: list[dict] = []
         error_rows: list[dict] = []
 
-        for row in rows_iter:
-            def get(field: str) -> str | None:
+        for row in all_rows[1:]:
+            def get(field: str, _row: list = row) -> str | None:
                 idx = col_index.get(field)
-                if idx is None:
+                if idx is None or idx >= len(_row):
                     return None
-                val = row[idx]
-                return str(val).strip() if val is not None else None
+                val = _row[idx]
+                return str(val).strip() if val is not None and str(val).strip() else None
 
             id_number = get("id_number")
             name = get("name")
