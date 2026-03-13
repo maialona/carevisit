@@ -708,6 +708,14 @@ export default function RecordFormPage() {
                   {label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={copied ? "已複製" : "複製內容"}
+                className="ml-auto inline-flex items-center justify-center p-2 mr-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-surface-100 transition-all"
+              >
+                {copied ? <Check className="h-4 w-4 text-gray-700" /> : <Copy className="h-4 w-4" />}
+              </button>
             </div>
           )}
 
@@ -749,26 +757,8 @@ export default function RecordFormPage() {
 
       {/* Action bar */}
       <div className="card flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-5">
-        <div className="flex gap-2 items-center justify-center sm:justify-start">
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={!refinedContent.trim()}
-            className="btn-ghost text-sm disabled:opacity-40 w-full sm:w-auto"
-          >
-            {copied ? (
-              <>
-                <Check className="h-5 w-5 text-gray-900" />
-                <span className="text-gray-900 font-bold">已複製</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-5 w-5" />
-                複製內容
-              </>
-            )}
-          </button>
-          {isEdit && (
+        {isEdit && (
+          <div className="flex gap-2 items-center justify-center sm:justify-start">
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
@@ -777,8 +767,8 @@ export default function RecordFormPage() {
               <Trash2 className="h-4 w-4" />
               刪除紀錄
             </button>
-          )}
-        </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">
           {isEdit && id && (
             <div className="col-span-2 grid grid-cols-2 gap-3 sm:flex sm:gap-3">
