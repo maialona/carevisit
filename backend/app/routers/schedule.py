@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.compliance import compute_compliance
 from app.core.database import get_db
 from app.deps import get_current_user
-from app.models.models import CaseProfile, User, UserRole, VisitSchedule, utcnow
+from app.models.models import CaseProfile, MonthlyVisitSchedule, User, UserRole, VisitSchedule, utcnow
 from app.schemas.schemas import (
     CaseComplianceItem,
     ComplianceStatus,
     ComplianceSummary,
+    MonthlyScheduleResponse,
+    MonthlyScheduleUpsert,
     PaginatedResponse,
     VisitScheduleResponse,
     VisitScheduleUpsert,
@@ -238,3 +240,102 @@ async def upsert_schedule(
     await db.commit()
     await db.refresh(schedule)
     return schedule
+
+
+async def _verify_case_access(
+    case_profile_id: uuid.UUID, current_user: User, db: AsyncSession
+) -> CaseProfile:
+    case_q = select(CaseProfile).where(
+        CaseProfile.id == case_profile_id,
+        CaseProfile.org_id == current_user.org_id,
+    )
+    if current_user.role != UserRole.admin:
+        case_q = case_q.where(CaseProfile.supervisor == current_user.name)
+    result = await db.execute(case_q)
+    case = result.scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail="個案不存在")
+    return case
+
+
+@router.get("/{case_profile_id}/monthly", response_model=List[MonthlyScheduleResponse])
+async def get_monthly_schedules(
+    case_profile_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _verify_case_access(case_profile_id, current_user, db)
+    result = await db.execute(
+        select(MonthlyVisitSchedule)
+        .where(MonthlyVisitSchedule.case_profile_id == case_profile_id)
+        .order_by(MonthlyVisitSchedule.year, MonthlyVisitSchedule.month)
+    )
+    return result.scalars().all()
+
+
+@router.put(
+    "/{case_profile_id}/monthly/{year}/{month}",
+    response_model=MonthlyScheduleResponse,
+)
+async def upsert_monthly_schedule(
+    case_profile_id: uuid.UUID,
+    year: int,
+    month: int,
+    body: MonthlyScheduleUpsert,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=422, detail="month 必須在 1–12 之間")
+    if not (1 <= body.preferred_day <= 28):
+        raise HTTPException(status_code=422, detail="preferred_day 必須在 1–28 之間")
+
+    await _verify_case_access(case_profile_id, current_user, db)
+
+    result = await db.execute(
+        select(MonthlyVisitSchedule).where(
+            MonthlyVisitSchedule.case_profile_id == case_profile_id,
+            MonthlyVisitSchedule.year == year,
+            MonthlyVisitSchedule.month == month,
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    if record is None:
+        record = MonthlyVisitSchedule(
+            case_profile_id=case_profile_id,
+            year=year,
+            month=month,
+            preferred_day=body.preferred_day,
+        )
+        db.add(record)
+    else:
+        record.preferred_day = body.preferred_day
+        record.updated_at = utcnow()
+
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+@router.delete("/{case_profile_id}/monthly/{year}/{month}", status_code=204)
+async def delete_monthly_schedule(
+    case_profile_id: uuid.UUID,
+    year: int,
+    month: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _verify_case_access(case_profile_id, current_user, db)
+
+    result = await db.execute(
+        select(MonthlyVisitSchedule).where(
+            MonthlyVisitSchedule.case_profile_id == case_profile_id,
+            MonthlyVisitSchedule.year == year,
+            MonthlyVisitSchedule.month == month,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is not None:
+        await db.delete(record)
+        await db.commit()

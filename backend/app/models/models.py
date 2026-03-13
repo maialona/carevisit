@@ -143,6 +143,22 @@ class VisitSchedule(Base):
     case_profile: Mapped["CaseProfile"] = relationship(back_populates="visit_schedule")
 
 
+class MonthlyVisitSchedule(Base):
+    __tablename__ = "monthly_visit_schedules"
+    __table_args__ = (UniqueConstraint("case_profile_id", "year", "month"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    case_profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("case_profiles.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)   # 1–12
+    preferred_day: Mapped[int] = mapped_column(Integer, nullable=False)  # 1–28
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 

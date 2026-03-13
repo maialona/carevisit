@@ -217,6 +217,12 @@ export interface VisitScheduleUpsert {
   reminder_enabled: boolean;
 }
 
+export interface MonthlySchedule {
+  year: number;
+  month: number;
+  preferred_day: number;
+}
+
 export interface ComplianceListParams {
   page?: number;
   page_size?: number;

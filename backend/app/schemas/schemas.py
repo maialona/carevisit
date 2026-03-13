@@ -323,6 +323,18 @@ class ComplianceSummary(BaseModel):
     total: int
 
 
+class MonthlyScheduleUpsert(BaseModel):
+    preferred_day: int  # 1–28
+
+
+class MonthlyScheduleResponse(BaseModel):
+    year: int
+    month: int
+    preferred_day: int
+
+    model_config = {"from_attributes": True}
+
+
 class ComplianceListParams(BaseModel):
     page: int = 1
     page_size: int = 20

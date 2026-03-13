@@ -3,6 +3,7 @@ import type {
   CaseComplianceItem,
   ComplianceListParams,
   ComplianceSummary,
+  MonthlySchedule,
   PaginatedResponse,
   VisitSchedule,
   VisitScheduleUpsert,
@@ -32,6 +33,26 @@ export const scheduleApi = {
   upsertSchedule(caseProfileId: string, body: VisitScheduleUpsert) {
     return api
       .put<VisitSchedule>(`/schedule/${caseProfileId}`, body)
+      .then((r) => r.data);
+  },
+
+  getMonthlySchedules(caseProfileId: string) {
+    return api
+      .get<MonthlySchedule[]>(`/schedule/${caseProfileId}/monthly`)
+      .then((r) => r.data);
+  },
+
+  upsertMonthlySchedule(caseProfileId: string, year: number, month: number, preferredDay: number) {
+    return api
+      .put<MonthlySchedule>(`/schedule/${caseProfileId}/monthly/${year}/${month}`, {
+        preferred_day: preferredDay,
+      })
+      .then((r) => r.data);
+  },
+
+  deleteMonthlySchedule(caseProfileId: string, year: number, month: number) {
+    return api
+      .delete(`/schedule/${caseProfileId}/monthly/${year}/${month}`)
       .then((r) => r.data);
   },
 };

@@ -6,6 +6,7 @@ import type {
   CaseComplianceItem,
   ComplianceStatus,
   ComplianceSummary,
+  MonthlySchedule,
   PaginatedResponse,
   VisitScheduleUpsert,
 } from "../types";
@@ -143,6 +144,16 @@ function ComplianceSummaryCards({
 
 // ─── Schedule Edit Modal ────────────────────────────────────────────────────
 
+function getUpcomingMonths(count: number): { year: number; month: number }[] {
+  const today = new Date();
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    result.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+  return result;
+}
+
 function ScheduleEditModal({
   item,
   onClose,
@@ -152,32 +163,93 @@ function ScheduleEditModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [day, setDay] = useState<string>(
+  const [defaultDay, setDefaultDay] = useState<string>(
     item.schedule?.preferred_day_of_month?.toString() ?? ""
   );
   const [reminderEnabled, setReminderEnabled] = useState(
     item.schedule?.reminder_enabled ?? true
   );
-  const [saving, setSaving] = useState(false);
+  const [monthlySchedules, setMonthlySchedules] = useState<MonthlySchedule[]>([]);
+  const [monthInputs, setMonthInputs] = useState<Record<string, string>>({});
+  const [savingDefault, setSavingDefault] = useState(false);
+  const [savingMonth, setSavingMonth] = useState<string | null>(null);
 
-  async function handleSave() {
-    setSaving(true);
+  const upcomingMonths = getUpcomingMonths(6);
+
+  useEffect(() => {
+    scheduleApi.getMonthlySchedules(item.case_profile_id).then((schedules) => {
+      setMonthlySchedules(schedules);
+      const inputs: Record<string, string> = {};
+      for (const s of schedules) {
+        inputs[`${s.year}-${s.month}`] = s.preferred_day.toString();
+      }
+      setMonthInputs(inputs);
+    }).catch(() => {});
+  }, [item.case_profile_id]);
+
+  function getMonthKey(year: number, month: number) {
+    return `${year}-${month}`;
+  }
+
+  function getMonthSchedule(year: number, month: number) {
+    return monthlySchedules.find((s) => s.year === year && s.month === month);
+  }
+
+  async function handleMonthSave(year: number, month: number) {
+    const key = getMonthKey(year, month);
+    const val = monthInputs[key];
+    const day = val ? parseInt(val, 10) : NaN;
+    if (isNaN(day) || day < 1 || day > 28) return;
+
+    setSavingMonth(key);
+    try {
+      const updated = await scheduleApi.upsertMonthlySchedule(
+        item.case_profile_id, year, month, day
+      );
+      setMonthlySchedules((prev) => {
+        const filtered = prev.filter((s) => !(s.year === year && s.month === month));
+        return [...filtered, updated];
+      });
+    } finally {
+      setSavingMonth(null);
+    }
+  }
+
+  async function handleMonthDelete(year: number, month: number) {
+    const key = getMonthKey(year, month);
+    setSavingMonth(key);
+    try {
+      await scheduleApi.deleteMonthlySchedule(item.case_profile_id, year, month);
+      setMonthlySchedules((prev) =>
+        prev.filter((s) => !(s.year === year && s.month === month))
+      );
+      setMonthInputs((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    } finally {
+      setSavingMonth(null);
+    }
+  }
+
+  async function handleDefaultSave() {
+    setSavingDefault(true);
     try {
       const body: VisitScheduleUpsert = {
-        preferred_day_of_month: day ? parseInt(day, 10) : null,
+        preferred_day_of_month: defaultDay ? parseInt(defaultDay, 10) : null,
         reminder_enabled: reminderEnabled,
       };
       await scheduleApi.upsertSchedule(item.case_profile_id, body);
       onSaved();
-      onClose();
     } finally {
-      setSaving(false);
+      setSavingDefault(false);
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="card w-full max-w-sm p-6 space-y-5">
+      <div className="card w-full max-w-lg p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-gray-900">
             排程設定 — {item.case_name}
@@ -187,57 +259,161 @@ function ScheduleEditModal({
           </button>
         </div>
 
-        <div className="space-y-3">
-          <label className="block text-sm font-semibold text-gray-700">
-            每月偏好拜訪日（1–28）
-          </label>
+        {/* Monthly overrides */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-700">各月訪視日期設定</p>
+          <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 overflow-hidden">
+            {upcomingMonths.map(({ year, month }) => {
+              const key = getMonthKey(year, month);
+              const override = getMonthSchedule(year, month);
+              const inputVal = monthInputs[key] ?? "";
+              const isSaving = savingMonth === key;
+              const hasOverride = !!override;
+              return (
+                <div key={key} className="flex items-center gap-3 px-4 py-2.5 bg-white">
+                  <span className="w-20 text-sm font-medium text-gray-700 shrink-0">
+                    {year}年{month}月
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={inputVal}
+                    onChange={(e) =>
+                      setMonthInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                    onBlur={() => {
+                      if (inputVal && !isNaN(parseInt(inputVal, 10))) {
+                        handleMonthSave(year, month);
+                      }
+                    }}
+                    placeholder={
+                      item.schedule?.preferred_day_of_month
+                        ? `預設 ${item.schedule.preferred_day_of_month}`
+                        : "未設定"
+                    }
+                    className="input w-24 text-sm"
+                    disabled={isSaving}
+                  />
+                  <span className="text-xs text-gray-400">日</span>
+                  {hasOverride ? (
+                    <button
+                      onClick={() => handleMonthDelete(year, month)}
+                      disabled={isSaving}
+                      className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      清除
+                    </button>
+                  ) : (
+                    <span className="ml-auto text-xs text-gray-300">使用預設</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400">離開欄位時自動儲存；清除後回退到下方預設日</p>
+        </div>
+
+        {/* Default day + reminder */}
+        <div className="space-y-3 border-t border-gray-100 pt-4">
+          <p className="text-sm font-semibold text-gray-700">預設每月日期（未設定月份的 fallback）</p>
           <input
             type="number"
             min={1}
             max={28}
-            value={day}
-            onChange={(e) => setDay(e.target.value)}
+            value={defaultDay}
+            onChange={(e) => setDefaultDay(e.target.value)}
             placeholder="留空則不設定"
             className="input w-full"
           />
-        </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
-          <div className="flex items-center gap-2">
-            {reminderEnabled ? (
-              <Bell className="h-4 w-4 text-gray-600" />
-            ) : (
-              <BellOff className="h-4 w-4 text-gray-400" />
-            )}
-            <span className="text-sm font-semibold text-gray-700">啟用提醒</span>
-          </div>
-          <button
-            onClick={() => setReminderEnabled((v) => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              reminderEnabled ? "bg-gray-900" : "bg-gray-200"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                reminderEnabled ? "translate-x-6" : "translate-x-1"
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3">
+            <div className="flex items-center gap-2">
+              {reminderEnabled ? (
+                <Bell className="h-4 w-4 text-gray-600" />
+              ) : (
+                <BellOff className="h-4 w-4 text-gray-400" />
+              )}
+              <span className="text-sm font-semibold text-gray-700">啟用提醒</span>
+            </div>
+            <button
+              onClick={() => setReminderEnabled((v) => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                reminderEnabled ? "bg-gray-900" : "bg-gray-200"
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  reminderEnabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-3 pt-1">
           <button onClick={onClose} className="btn btn-secondary flex-1">
-            取消
+            關閉
           </button>
           <button
-            onClick={handleSave}
-            disabled={saving}
+            onClick={handleDefaultSave}
+            disabled={savingDefault}
             className="btn btn-primary flex-1"
           >
-            {saving ? "儲存中…" : "儲存"}
+            {savingDefault ? "儲存中…" : "儲存預設"}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Schedule Cell ──────────────────────────────────────────────────────────
+
+function ScheduleCell({
+  item,
+  onEdit,
+}: {
+  item: CaseComplianceItem;
+  onEdit: (item: CaseComplianceItem) => void;
+}) {
+  const [currentMonthDay, setCurrentMonthDay] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const today = new Date();
+    scheduleApi
+      .getMonthlySchedules(item.case_profile_id)
+      .then((schedules) => {
+        const match = schedules.find(
+          (s) => s.year === today.getFullYear() && s.month === today.getMonth() + 1
+        );
+        setCurrentMonthDay(match?.preferred_day ?? null);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [item.case_profile_id]);
+
+  const displayDay = currentMonthDay ?? item.schedule?.preferred_day_of_month ?? null;
+  const isOverride = !!currentMonthDay;
+
+  return (
+    <div className="flex items-center gap-2">
+      {displayDay ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-surface-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+          <CalendarDays className="h-3 w-3" />
+          {isOverride ? `${displayDay} 日` : `預設 ${displayDay} 日`}
+        </span>
+      ) : loaded ? (
+        <span className="text-xs text-gray-400">未設定</span>
+      ) : null}
+      <button
+        onClick={() => onEdit(item)}
+        className="rounded-lg p-1.5 text-gray-400 hover:bg-surface-100 hover:text-gray-700 transition-colors"
+        title="編輯排程"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -326,23 +502,7 @@ function ComplianceTable({
                 )}
               </td>
               <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  {item.schedule?.preferred_day_of_month ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-surface-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                      <CalendarDays className="h-3 w-3" />
-                      每月 {item.schedule.preferred_day_of_month} 日
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">未設定</span>
-                  )}
-                  <button
-                    onClick={() => onEdit(item)}
-                    className="rounded-lg p-1.5 text-gray-400 hover:bg-surface-100 hover:text-gray-700 transition-colors"
-                    title="編輯排程"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <ScheduleCell item={item} onEdit={onEdit} />
               </td>
             </tr>
           ))}
