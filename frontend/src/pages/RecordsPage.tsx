@@ -19,7 +19,6 @@ import {
   User,
   FileEdit,
   ClipboardList,
-  MapPin,
   Clock,
   Trash2,
 } from "lucide-react";
@@ -272,11 +271,6 @@ export default function RecordsPage() {
                     {/* Left info: name + area + status */}
                     <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                       <p className="shrink-0 text-sm font-bold text-gray-900 sm:text-[15px]">{r.case_name}</p>
-                      {r.org_name && (
-                        <span className="hidden truncate text-xs font-medium text-gray-400 sm:inline">
-                          {r.org_name}
-                        </span>
-                      )}
                       <span
                         className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-bold tracking-wide ${
                           r.status === "completed"
@@ -339,10 +333,6 @@ export default function RecordsPage() {
                             label={new Date(r.visit_date).toLocaleDateString("zh-TW")}
                           />
                           <MetaPill icon={User} label={r.user_name} />
-                          <MetaPill
-                            icon={MapPin}
-                            label={r.org_name || "—"}
-                          />
                           <MetaPill
                             icon={Clock}
                             label={r.output_format === "bullet" ? "條列式" : "敘述式"}

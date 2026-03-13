@@ -13,7 +13,6 @@ import {
   Phone,
   Calendar,
   User,
-  MapPin,
   ChevronDown,
   FileEdit,
   Trash2,
@@ -199,7 +198,6 @@ export default function ClientDetailPage() {
                           <MetaPill icon={isHome ? Home : Phone} label={isHome ? "家訪" : "電訪"} />
                           <MetaPill icon={Calendar} label={new Date(r.visit_date).toLocaleDateString("zh-TW")} />
                           <MetaPill icon={User} label={r.user_name} />
-                          <MetaPill icon={MapPin} label={r.org_name || "—"} />
                         </div>
 
                         <div className="mb-5 rounded-xl border border-gray-100 bg-surface-50 p-4">
