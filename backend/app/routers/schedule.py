@@ -118,6 +118,8 @@ async def get_compliance_summary(
 
     return ComplianceSummary(
         ok=counts["ok"],
+        pending=counts["pending"],
+        no_record=counts["no_record"],
         due_soon=counts["due_soon"],
         overdue=counts["overdue"],
         total=len(cases),
