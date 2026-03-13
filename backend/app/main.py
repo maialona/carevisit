@@ -57,6 +57,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS monthly_visit_schedules (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                case_profile_id UUID NOT NULL REFERENCES case_profiles(id) ON DELETE CASCADE,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                preferred_day INTEGER NOT NULL CHECK (preferred_day BETWEEN 1 AND 28),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(case_profile_id, year, month)
+            )
+        """))
     yield
     await engine.dispose()
 
