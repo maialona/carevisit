@@ -10,6 +10,8 @@ import type {
 } from "../types";
 
 export const caseProfilesApi = {
+  getById: (id: string) => api.get<CaseProfile>(`/case-profiles/${id}`),
+
   getList: (params: {
     page?: number;
     page_size?: number;

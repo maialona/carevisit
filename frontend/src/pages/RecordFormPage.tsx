@@ -107,17 +107,26 @@ export default function RecordFormPage() {
     if (!id) return;
     recordsApi
       .getById(id)
-      .then((r: VisitRecord) => {
+      .then(async (r: VisitRecord) => {
         setCaseName(r.case_name);
         setCaseSearch(r.case_name);
-        setOrgName(r.org_name);
         setVisitType(r.visit_type);
         setVisitDate(r.visit_date.slice(0, 10));
         setRawInput(r.raw_input);
         setRefinedContent(r.refined_content);
         setOutputFormat(r.output_format);
         setAutoRefine(r.auto_refine);
-        if (r.case_profile_id) setCaseProfileId(r.case_profile_id);
+        if (r.case_profile_id) {
+          setCaseProfileId(r.case_profile_id);
+          try {
+            const { data: cp } = await caseProfilesApi.getById(r.case_profile_id);
+            setOrgName(cp.district || "");
+          } catch {
+            setOrgName(r.org_name);
+          }
+        } else {
+          setOrgName(r.org_name);
+        }
       })
       .catch(() => showToast("載入紀錄失敗", "error"))
       .finally(() => setLoading(false));

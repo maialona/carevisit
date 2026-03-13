@@ -91,6 +91,24 @@ async def list_case_profiles(
     )
 
 
+@router.get("/{case_profile_id}", response_model=CaseProfileOut)
+async def get_case_profile(
+    case_profile_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(CaseProfile).where(
+            CaseProfile.id == case_profile_id,
+            CaseProfile.org_id == current_user.org_id,
+        )
+    )
+    case = result.scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail="個案不存在")
+    return case
+
+
 @router.post("", response_model=CaseProfileOut, status_code=status.HTTP_201_CREATED)
 async def create_case_profile(
     body: CaseProfileCreate,
