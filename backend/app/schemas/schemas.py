@@ -197,6 +197,78 @@ class CheckGapsResponse(BaseModel):
     gaps: List[GapItem]
 
 
+# --- CaseProfile ---
+class CaseProfileOut(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    id_number: str
+    name: str
+    supervisor: Optional[str] = None
+    gender: Optional[str] = None
+    service_status: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    district: Optional[str] = None
+    road: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CaseProfileCreate(BaseModel):
+    id_number: str
+    name: str
+    supervisor: Optional[str] = None
+    gender: Optional[str] = None
+    service_status: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    district: Optional[str] = None
+    road: Optional[str] = None
+
+
+class CaseProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    supervisor: Optional[str] = None
+    gender: Optional[str] = None
+    service_status: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    district: Optional[str] = None
+    road: Optional[str] = None
+
+
+class ImportPreviewRow(BaseModel):
+    id_number: str
+    name: str
+    supervisor: Optional[str] = None
+    gender: Optional[str] = None
+    service_status: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    district: Optional[str] = None
+    road: Optional[str] = None
+    action: Literal["create", "update"]
+
+
+class ImportPreviewResponse(BaseModel):
+    rows: List[ImportPreviewRow]
+    create_count: int
+    update_count: int
+    error_rows: List[dict]
+
+
+class ImportConfirmRequest(BaseModel):
+    rows: List[ImportPreviewRow]
+
+
+class ImportConfirmResponse(BaseModel):
+    created: int
+    updated: int
+    errors: int
+
+
 # --- Client Card ---
 class ClientCardResponse(BaseModel):
     case_name: str

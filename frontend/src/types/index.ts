@@ -85,6 +85,72 @@ export interface RecordListParams {
   user_id?: string;
 }
 
+// --- CaseProfile ---
+export interface CaseProfile {
+  id: string;
+  org_id: string;
+  id_number: string;
+  name: string;
+  supervisor?: string;
+  gender?: string;
+  service_status?: string;
+  phone?: string;
+  address?: string;
+  district?: string;
+  road?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CaseProfileCreate {
+  id_number: string;
+  name: string;
+  supervisor?: string;
+  gender?: string;
+  service_status?: string;
+  phone?: string;
+  address?: string;
+  district?: string;
+  road?: string;
+}
+
+export interface CaseProfileUpdate {
+  name?: string;
+  supervisor?: string;
+  gender?: string;
+  service_status?: string;
+  phone?: string;
+  address?: string;
+  district?: string;
+  road?: string;
+}
+
+export interface ImportPreviewRow {
+  id_number: string;
+  name: string;
+  supervisor?: string;
+  gender?: string;
+  service_status?: string;
+  phone?: string;
+  address?: string;
+  district?: string;
+  road?: string;
+  action: "create" | "update";
+}
+
+export interface ImportPreviewResponse {
+  rows: ImportPreviewRow[];
+  create_count: number;
+  update_count: number;
+  error_rows: { name: string; reason: string }[];
+}
+
+export interface ImportConfirmResponse {
+  created: number;
+  updated: number;
+  errors: number;
+}
+
 // --- Client Card ---
 export interface ClientCard {
   case_name: string;

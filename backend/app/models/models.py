@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Integer
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.types import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,6 +47,7 @@ class Organization(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="organization")
+    case_profiles: Mapped[list["CaseProfile"]] = relationship(back_populates="organization")
 
 class User(Base):
     __tablename__ = "users"
@@ -98,6 +99,27 @@ class RefinementLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     record: Mapped["VisitRecord"] = relationship(back_populates="refinement_logs")
+
+
+class CaseProfile(Base):
+    __tablename__ = "case_profiles"
+    __table_args__ = (UniqueConstraint("org_id", "id_number"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    id_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    supervisor: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    service_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    district: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    road: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    organization: Mapped["Organization"] = relationship(back_populates="case_profiles")
 
 
 class ChatSession(Base):

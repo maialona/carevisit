@@ -11,6 +11,7 @@ import {
   Bot,
   Settings,
   HeartHandshake,
+  FolderOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { label: "總覽", icon: LayoutDashboard, to: "/dashboard" },
   { label: "家電訪紀錄", icon: ClipboardList, to: "/records" },
   { label: "個案卡片", icon: Users, to: "/clients" },
+  { label: "個案管理", icon: FolderOpen, to: "/admin/case-profiles", adminOnly: true },
   { label: "帳號管理", icon: Settings, to: "/admin/users", adminOnly: true },
 ];
 

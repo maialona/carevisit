@@ -13,6 +13,7 @@ import ClientsPage from "./pages/ClientsPage";
 import ClientDetailPage from "./pages/ClientDetailPage";
 
 import UsersManagementPage from "./pages/admin/UsersManagementPage";
+import CaseProfilesPage from "./pages/admin/CaseProfilesPage";
 import AdminRoute from "./components/AdminRoute";
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -57,6 +58,7 @@ export default function App() {
 
               <Route element={<AdminRoute />}>
                 <Route path="/admin/users" element={<UsersManagementPage />} />
+                <Route path="/admin/case-profiles" element={<CaseProfilesPage />} />
               </Route>
             </Route>
           </Route>
