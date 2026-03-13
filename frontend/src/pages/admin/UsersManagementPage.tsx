@@ -190,7 +190,7 @@ export default function UsersManagementPage() {
                            <UserX className="h-4 w-4" />
                         </button>
                       )}
-                      {!u.is_active && u.record_count === 0 && (
+                      {!u.is_active && (
                         <button
                            onClick={() => { setUserToDelete(u); setShowDeleteConfirm(true); }}
                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-700"
