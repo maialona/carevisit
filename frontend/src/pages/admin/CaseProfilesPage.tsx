@@ -26,6 +26,7 @@ export default function CaseProfilesPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
 
   const [addressCase, setAddressCase] = useState<CaseProfile | null>(null);
 
@@ -126,7 +127,7 @@ export default function CaseProfilesPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-gray-900">個案管理</h2>
         <div className="flex gap-2">
-          {someSelected && (
+          {selectMode && someSelected && (
             <button
               onClick={() => setShowBatchDeleteConfirm(true)}
               className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200"
@@ -135,6 +136,14 @@ export default function CaseProfilesPage() {
               刪除已選 ({selected.size})
             </button>
           )}
+          <button
+            onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); }}
+            className={`btn-secondary ${selectMode ? "bg-surface-100 text-gray-900" : ""}`}
+            title="批次刪除"
+          >
+            <Trash2 className="h-4 w-4" />
+            批次刪除
+          </button>
           <button onClick={() => setShowImport(true)} className="btn-secondary">
             <Upload className="h-4 w-4" />
             匯入 Excel
@@ -185,27 +194,30 @@ export default function CaseProfilesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-surface-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
-                    />
-                  </th>
+                  {selectMode && (
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3">姓名</th>
                   <th className="px-4 py-3">身分證字號</th>
                   <th className="px-4 py-3">居督</th>
                   <th className="px-4 py-3">性別</th>
                   <th className="px-4 py-3">服務狀態</th>
                   <th className="px-4 py-3">手機</th>
+                  <th className="px-4 py-3">地址</th>
                   <th className="px-4 py-3">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={selectMode ? 9 : 8} className="px-4 py-8 text-center text-gray-400">
                       尚無個案資料
                     </td>
                   </tr>
@@ -215,14 +227,16 @@ export default function CaseProfilesPage() {
                     key={c.id}
                     className={`transition-colors hover:bg-surface-50 ${selected.has(c.id) ? "bg-primary-50" : ""}`}
                   >
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleOne(c.id)}
-                        className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
-                      />
-                    </td>
+                    {selectMode && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(c.id)}
+                          onChange={() => toggleOne(c.id)}
+                          className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
                     <td className="px-4 py-3 text-gray-600">{c.id_number}</td>
                     <td className="px-4 py-3 text-gray-600">{c.supervisor ?? "-"}</td>
@@ -234,19 +248,19 @@ export default function CaseProfilesPage() {
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      <div className="flex items-center gap-1.5">
-                        <span>{c.phone ?? "-"}</span>
-                        {(c.address || c.district || c.road) && (
-                          <button
-                            onClick={() => setAddressCase(c)}
-                            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
-                            title="查看地址"
-                          >
-                            <MapPin className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                    <td className="px-4 py-3 text-gray-600">{c.phone ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      {(c.address || c.district || c.road) ? (
+                        <button
+                          onClick={() => setAddressCase(c)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
+                          title="查看地址"
+                        >
+                          <MapPin className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 px-2">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
