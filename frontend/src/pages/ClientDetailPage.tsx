@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { clientsApi } from "../api/clients";
+import { recordsApi } from "../api/records";
 import Pagination from "../components/ui/Pagination";
+import ConfirmModal from "../components/ui/ConfirmModal";
+import { useToast } from "../contexts/ToastContext";
 import {
   ArrowLeft,
   Users,
@@ -13,12 +16,14 @@ import {
   MapPin,
   ChevronDown,
   FileEdit,
+  Trash2,
 } from "lucide-react";
 import type { VisitRecord } from "../types";
 
 export default function ClientDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { showToast } = useToast();
   const caseName = searchParams.get("case_name") || "";
   const orgName = searchParams.get("org_name") || "";
 
@@ -28,6 +33,7 @@ export default function ClientDetailPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<VisitRecord | null>(null);
 
   const fetchRecords = useCallback(async () => {
     if (!caseName || !orgName) return;
@@ -52,6 +58,20 @@ export default function ClientDetailPage() {
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  const handleDelete = async () => {
+    if (!recordToDelete) return;
+    try {
+      await recordsApi.delete(recordToDelete.id);
+      showToast("紀錄已刪除");
+      setExpandedId(null);
+      fetchRecords();
+    } catch {
+      showToast("刪除失敗，請重試", "error");
+    } finally {
+      setRecordToDelete(null);
+    }
+  };
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -197,7 +217,14 @@ export default function ClientDetailPage() {
                           />
                         </div>
 
-                        <div className="flex justify-end">
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={() => setRecordToDelete(r)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-500 transition-all hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            刪除紀錄
+                          </button>
                           <button
                             onClick={() => navigate(`/records/${r.id}/edit`)}
                             className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"
@@ -217,6 +244,16 @@ export default function ClientDetailPage() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
+
+      <ConfirmModal
+        open={!!recordToDelete}
+        title="刪除訪視紀錄"
+        message={`確定要刪除此筆訪視紀錄嗎？此操作無法復原。`}
+        confirmLabel="確認刪除"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setRecordToDelete(null)}
+      />
     </div>
   );
 }

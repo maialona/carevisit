@@ -4,6 +4,7 @@ import { recordsApi } from "../api/records";
 import { useDebounce } from "../hooks/useDebounce";
 import Pagination from "../components/ui/Pagination";
 import ExportDropdown from "../components/records/ExportDropdown";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
@@ -20,8 +21,10 @@ import {
   ClipboardList,
   MapPin,
   Clock,
+  Trash2,
 } from "lucide-react";
 import type { VisitRecord } from "../types";
+import { useToast } from "../contexts/ToastContext";
 
 const TYPE_TABS = [
   { label: "全部", value: "" },
@@ -38,6 +41,7 @@ const STATUS_OPTIONS = [
 export default function RecordsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { showToast } = useToast();
 
   const [records, setRecords] = useState<VisitRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +49,7 @@ export default function RecordsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<VisitRecord | null>(null);
 
   // Filters
   const [caseName, setCaseName] = useState(searchParams.get("case_name") || "");
@@ -88,6 +93,20 @@ export default function RecordsPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedCaseName, visitType, statusFilter, debouncedDateFrom, debouncedDateTo]);
+
+  const handleDelete = async () => {
+    if (!recordToDelete) return;
+    try {
+      await recordsApi.delete(recordToDelete.id);
+      showToast("紀錄已刪除");
+      setExpandedId(null);
+      fetchRecords();
+    } catch {
+      showToast("刪除失敗，請重試", "error");
+    } finally {
+      setRecordToDelete(null);
+    }
+  };
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -347,19 +366,28 @@ export default function RecordsPage() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <button
-                            onClick={() => navigate(`/records/${r.id}/edit`)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                            onClick={() => setRecordToDelete(r)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-500 transition-all hover:-translate-y-0.5 hover:bg-red-50 hover:shadow-sm"
                           >
-                            <FileEdit className="h-4 w-4" />
-                            編輯紀錄
+                            <Trash2 className="h-4 w-4" />
+                            刪除紀錄
                           </button>
-                          <ExportDropdown
-                            recordId={r.id}
-                            caseName={r.case_name}
-                            visitDate={r.visit_date}
-                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => navigate(`/records/${r.id}/edit`)}
+                              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-primary-500 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                              <FileEdit className="h-4 w-4" />
+                              編輯紀錄
+                            </button>
+                            <ExportDropdown
+                              recordId={r.id}
+                              caseName={r.case_name}
+                              visitDate={r.visit_date}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -376,6 +404,16 @@ export default function RecordsPage() {
           />
         </>
       )}
+
+      <ConfirmModal
+        open={!!recordToDelete}
+        title="刪除訪視紀錄"
+        message={`確定要刪除「${recordToDelete?.case_name}」的訪視紀錄嗎？此操作無法復原。`}
+        confirmLabel="確認刪除"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setRecordToDelete(null)}
+      />
     </div>
   );
 }

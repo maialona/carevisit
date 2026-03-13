@@ -31,6 +31,7 @@ import {
   GitCompareArrows,
   Columns2,
   PenLine,
+  Trash2,
 } from "lucide-react";
 import type { CaseProfile, GapItem, ToneStyle, VisitRecord } from "../types";
 
@@ -94,6 +95,7 @@ export default function RecordFormPage() {
   const [copied, setCopied] = useState(false);
   const [showFormatConfirm, setShowFormatConfirm] = useState(false);
   const pendingFormatRef = useRef<OutputFormat | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // View mode: "edit" = RichEditor, "diff" = diff comparison, "section" = paragraph-level refine
   type ViewMode = "edit" | "diff" | "section";
@@ -333,6 +335,20 @@ export default function RecordFormPage() {
       showToast("複製失敗", "error");
     }
   }, [refinedContent, showToast]);
+
+  // --- Delete ---
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await recordsApi.delete(id);
+      showToast("紀錄已刪除");
+      navigate("/records");
+    } catch {
+      showToast("刪除失敗，請重試", "error");
+    } finally {
+      setShowDeleteConfirm(false);
+    }
+  };
 
   // --- Hotkeys ---
   useHotkeys("mod+s", (e) => {
@@ -752,6 +768,16 @@ export default function RecordFormPage() {
               </>
             )}
           </button>
+          {isEdit && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              刪除紀錄
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">
           {isEdit && id && (
@@ -800,6 +826,16 @@ export default function RecordFormPage() {
           setShowFormatConfirm(false);
           pendingFormatRef.current = null;
         }}
+      />
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        title="刪除訪視紀錄"
+        message={`確定要刪除「${caseName}」的訪視紀錄嗎？此操作無法復原。`}
+        confirmLabel="確認刪除"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );
