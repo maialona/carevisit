@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Upload, Pencil, Trash2, Loader2, Search } from "lucide-react";
+import { Plus, Upload, Pencil, Trash2, Loader2, Search, MapPin, X } from "lucide-react";
 import { caseProfilesApi } from "../../api/caseProfiles";
 import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -26,6 +26,8 @@ export default function CaseProfilesPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+
+  const [addressCase, setAddressCase] = useState<CaseProfile | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -232,7 +234,20 @@ export default function CaseProfilesPage() {
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.phone ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <div className="flex items-center gap-1.5">
+                        <span>{c.phone ?? "-"}</span>
+                        {(c.address || c.district || c.road) && (
+                          <button
+                            onClick={() => setAddressCase(c)}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
+                            title="查看地址"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -309,6 +324,43 @@ export default function CaseProfilesPage() {
         onConfirm={handleDelete}
         onCancel={() => { setShowDeleteConfirm(false); setCaseToDelete(null); }}
       />
+
+      {addressCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-modal animate-scale-in">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-primary-600" />
+                <h3 className="text-base font-bold text-gray-900">{addressCase.name} 的地址</h3>
+              </div>
+              <button onClick={() => setAddressCase(null)} className="rounded-lg p-1 text-gray-400 hover:bg-surface-100 hover:text-gray-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <dl className="space-y-3 text-sm">
+              {addressCase.address && (
+                <div>
+                  <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">通訊地址</dt>
+                  <dd className="text-gray-800">{addressCase.address}</dd>
+                </div>
+              )}
+              {addressCase.district && (
+                <div>
+                  <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">通訊鄉鎮區</dt>
+                  <dd className="text-gray-800">{addressCase.district}</dd>
+                </div>
+              )}
+              {addressCase.road && (
+                <div>
+                  <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">通訊路段</dt>
+                  <dd className="text-gray-800">{addressCase.road}</dd>
+                </div>
+              )}
+            </dl>
+            <button onClick={() => setAddressCase(null)} className="btn-secondary mt-5 w-full">關閉</button>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         open={showBatchDeleteConfirm}
