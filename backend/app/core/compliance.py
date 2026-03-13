@@ -54,9 +54,9 @@ def _phone_compliance(
             due_by=month_end,
         )
 
-    # Still plenty of time this month
+    # No visit yet, but still has time this month
     return VisitComplianceDetail(
-        status=ComplianceStatus.ok,
+        status=ComplianceStatus.pending,
         last_date=None,
         due_by=month_end,
     )
@@ -98,8 +98,9 @@ def _home_compliance(
 
 _STATUS_ORDER = {
     ComplianceStatus.ok: 0,
-    ComplianceStatus.due_soon: 1,
-    ComplianceStatus.overdue: 2,
+    ComplianceStatus.pending: 1,
+    ComplianceStatus.due_soon: 2,
+    ComplianceStatus.overdue: 3,
 }
 
 

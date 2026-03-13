@@ -32,6 +32,13 @@ function ComplianceStatusBadge({ status }: { status: ComplianceStatus }) {
         達標
       </span>
     );
+  if (status === "pending")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500">
+        <Clock className="h-3 w-3" />
+        待訪
+      </span>
+    );
   if (status === "due_soon")
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
@@ -378,7 +385,7 @@ export default function SchedulePage() {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-2">
-            {([null, "overdue", "due_soon", "ok"] as (ComplianceStatus | null)[]).map(
+            {([null, "overdue", "due_soon", "pending", "ok"] as (ComplianceStatus | null)[]).map(
               (s) => (
                 <button
                   key={String(s)}
@@ -389,7 +396,7 @@ export default function SchedulePage() {
                       : "bg-surface-100 text-gray-500 hover:bg-gray-200"
                   }`}
                 >
-                  {s === null ? "全部" : s === "overdue" ? "逾期" : s === "due_soon" ? "即將到期" : "已達標"}
+                  {s === null ? "全部" : s === "overdue" ? "逾期" : s === "due_soon" ? "即將到期" : s === "pending" ? "待訪" : "已達標"}
                 </button>
               )
             )}

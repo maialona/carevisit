@@ -175,7 +175,7 @@ export interface ClientRecordParams {
 }
 
 // --- Schedule & Compliance ---
-export type ComplianceStatus = "ok" | "due_soon" | "overdue";
+export type ComplianceStatus = "ok" | "pending" | "due_soon" | "overdue";
 
 export interface VisitSchedule {
   id: string;

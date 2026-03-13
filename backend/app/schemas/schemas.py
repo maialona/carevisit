@@ -275,6 +275,7 @@ class ImportConfirmResponse(BaseModel):
 # --- Schedule & Compliance ---
 class ComplianceStatus(str, enum.Enum):
     ok = "ok"
+    pending = "pending"   # no visit yet this month, but still has time
     due_soon = "due_soon"
     overdue = "overdue"
 
