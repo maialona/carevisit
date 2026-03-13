@@ -69,6 +69,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 UNIQUE(case_profile_id, year, month)
             )
         """))
+        # Backfill org_name with case district for records linked to a case profile
+        await conn.execute(text("""
+            UPDATE visit_records vr
+            SET org_name = COALESCE(cp.district, '')
+            FROM case_profiles cp
+            WHERE vr.case_profile_id = cp.id
+              AND vr.org_name IS DISTINCT FROM COALESCE(cp.district, '')
+        """))
     yield
     await engine.dispose()
 
