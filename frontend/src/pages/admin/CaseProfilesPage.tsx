@@ -206,14 +206,14 @@ export default function CaseProfilesPage() {
                       />
                     </th>
                   )}
-                  <th className="px-4 py-3">姓名</th>
-                  <th className="px-4 py-3">身分證字號</th>
-                  <th className="px-4 py-3">居督</th>
-                  <th className="px-4 py-3">性別</th>
-                  <th className="px-4 py-3">服務狀態</th>
-                  <th className="px-4 py-3">手機</th>
+                  <th className="px-4 py-3 min-w-[5rem]">姓名</th>
+                  <th className="px-4 py-3 min-w-[8rem]">身分證字號</th>
+                  <th className="px-4 py-3 min-w-[5rem]">居督</th>
+                  <th className="px-4 py-3 w-12">性別</th>
+                  <th className="px-4 py-3 min-w-[5.5rem]">服務狀態</th>
+                  <th className="px-4 py-3 min-w-[7rem]">手機</th>
                   <th className="px-4 py-3 w-16">地址</th>
-                  <th className="px-4 py-3">操作</th>
+                  <th className="px-4 py-3 min-w-[6rem]">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -239,23 +239,23 @@ export default function CaseProfilesPage() {
                         />
                       </td>
                     )}
-                    <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.id_number}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.supervisor ?? "-"}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.gender ?? "-"}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{c.name}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.id_number}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.supervisor ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.gender ?? "-"}</td>
                     <td className="px-4 py-3">
                       {c.service_status ? (
-                        <span className={
+                        <span className={`whitespace-nowrap ${
                           c.service_status === "服務中" ? "badge-green" :
                           c.service_status === "暫停" ? "badge-yellow" :
                           c.service_status === "結案" ? "badge-red" :
                           "badge-blue"
-                        }>{c.service_status}</span>
+                        }`}>{c.service_status}</span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.phone ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.phone ?? "-"}</td>
                     <td className="px-4 py-3">
                       {(c.address || c.district || c.road) ? (
                         <button
