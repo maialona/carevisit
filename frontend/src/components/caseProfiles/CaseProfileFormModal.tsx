@@ -84,7 +84,12 @@ export default function CaseProfileFormModal({ editing, onSave, onClose }: Props
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">服務狀態</label>
-              <input name="service_status" defaultValue={editing?.service_status ?? ""} className="input-base" />
+              <select name="service_status" defaultValue={editing?.service_status ?? ""} className="input-base">
+                <option value="">不指定</option>
+                <option value="服務中">服務中</option>
+                <option value="暫停">暫停</option>
+                <option value="結案">結案</option>
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">手機</label>
