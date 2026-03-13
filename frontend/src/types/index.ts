@@ -205,6 +205,8 @@ export interface CaseComplianceItem {
 
 export interface ComplianceSummary {
   ok: number;
+  pending: number;
+  no_record: number;
   due_soon: number;
   overdue: number;
   total: number;

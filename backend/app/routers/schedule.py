@@ -109,7 +109,7 @@ async def get_compliance_summary(
     case_ids = [c.id for c in cases]
     last_visits = await _get_last_visits(db, case_ids)
 
-    counts = {"ok": 0, "due_soon": 0, "overdue": 0}
+    counts = {"ok": 0, "pending": 0, "no_record": 0, "due_soon": 0, "overdue": 0}
     today = date.today()
     for case in cases:
         lv = last_visits.get(case.id, {})

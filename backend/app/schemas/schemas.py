@@ -316,6 +316,8 @@ class CaseComplianceItem(BaseModel):
 
 class ComplianceSummary(BaseModel):
     ok: int
+    pending: int
+    no_record: int
     due_soon: int
     overdue: int
     total: int
