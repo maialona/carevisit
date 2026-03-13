@@ -90,6 +90,10 @@ export default function CaseProfileFormModal({ editing, onSave, onClose }: Props
               <label className="mb-1 block text-sm font-medium text-gray-700">手機</label>
               <input name="phone" defaultValue={editing?.phone ?? ""} className="input-base" />
             </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">通訊地址</label>
+              <input name="address" defaultValue={editing?.address ?? ""} className="input-base" />
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">通訊鄉鎮區</label>
               <input name="district" defaultValue={editing?.district ?? ""} className="input-base" />
@@ -97,10 +101,6 @@ export default function CaseProfileFormModal({ editing, onSave, onClose }: Props
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">通訊路段</label>
               <input name="road" defaultValue={editing?.road ?? ""} className="input-base" />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">通訊地址</label>
-              <input name="address" defaultValue={editing?.address ?? ""} className="input-base" />
             </div>
           </div>
 
