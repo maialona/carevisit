@@ -157,6 +157,24 @@ AGENT_FUNCTIONS = [
         },
     },
     {
+        "name": "create_draft_record",
+        "description": "將對話中產生的訪視草稿寫入系統，建立一筆草稿紀錄。未帶 confirm=true 時只回傳預覽",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name", "visit_type", "visit_date", "content"],
+            "properties": {
+                "case_name": {"type": "string", "description": "個案姓名"},
+                "visit_type": {"type": "string", "enum": ["home", "phone"], "description": "訪視類型"},
+                "visit_date": {"type": "string", "description": "訪視日期，格式 YYYY-MM-DD"},
+                "content": {"type": "string", "description": "訪視紀錄內容（AI 生成的草稿文字）"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "設為 true 才實際寫入，否則只回傳預覽",
+                },
+            },
+        },
+    },
+    {
         "name": "set_visit_schedule",
         "description": "設定或更新個案的訪視日安排。未帶 confirm=true 時只回傳預覽，不實際寫入",
         "parameters": {
@@ -677,6 +695,70 @@ async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSess
     return f"已成功更新：{target}。"
 
 
+async def _exec_create_draft_record(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "")
+    visit_type_str = args.get("visit_type", "")
+    visit_date_str = args.get("visit_date", "")
+    content = args.get("content", "")
+    confirm = args.get("confirm", False)
+
+    if not case_name:
+        return "請提供個案姓名。"
+    if visit_type_str not in ("home", "phone"):
+        return "visit_type 必須是 home 或 phone。"
+    if not visit_date_str:
+        return "請提供訪視日期（格式 YYYY-MM-DD）。"
+    if not content:
+        return "請提供訪視紀錄內容。"
+
+    try:
+        visit_date = datetime.strptime(visit_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return f"日期格式錯誤：{visit_date_str}，請使用 YYYY-MM-DD。"
+
+    visit_type = VisitType(visit_type_str)
+    vt_label = "家訪" if visit_type == VisitType.home else "電訪"
+
+    # Resolve case_profile_id if a matching CaseProfile exists
+    cp_q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
+    cp_q = _case_filter(cp_q, current_user)
+    cp_result = await db.execute(cp_q)
+    cp = cp_result.scalars().first()
+    case_profile_id = cp.id if cp else None
+
+    # Org name
+    org_r = await db.execute(select(Organization.name).where(Organization.id == current_user.org_id))
+    org_name = org_r.scalar() or ""
+
+    preview = (
+        f"【預覽】即將建立草稿紀錄：\n"
+        f"- 個案：{case_name}\n"
+        f"- 類型：{vt_label}\n"
+        f"- 日期：{visit_date_str}\n"
+        f"- 內容（前100字）：{content[:100]}\n\n"
+        f"如確認請再次發送並加上 confirm=true。"
+    )
+
+    if not confirm:
+        return preview
+
+    record = VisitRecord(
+        case_name=case_name,
+        org_name=org_name,
+        user_id=current_user.id,
+        visit_type=visit_type,
+        visit_date=visit_date,
+        raw_input=content,
+        refined_content=content,
+        status=RecordStatus.draft,
+        case_profile_id=case_profile_id,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return f"已成功建立草稿紀錄（ID: {record.id}）：{case_name} {vt_label} {visit_date_str}。您可以到訪視紀錄頁面查看並完成填寫。"
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -687,6 +769,7 @@ FUNCTION_MAP = {
     "get_case_compliance": _exec_get_case_compliance,
     "list_overdue_cases": _exec_list_overdue_cases,
     "search_cases": _exec_search_cases,
+    "create_draft_record": _exec_create_draft_record,
     "set_visit_schedule": _exec_set_visit_schedule,
 }
 
