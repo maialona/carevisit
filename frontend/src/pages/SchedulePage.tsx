@@ -76,63 +76,67 @@ function ComplianceSummaryCards({
     key: ComplianceStatus | null;
     label: string;
     value: number | undefined;
-    icon: React.ReactNode;
-    color: string;
-    ring: string;
+    Icon: React.ElementType;
+    iconClass: string;
   }[] = [
     {
       key: "overdue",
       label: "逾期",
       value: summary?.overdue,
-      icon: <AlertTriangle className="h-5 w-5" />,
-      color: "bg-red-50 text-red-600",
-      ring: "ring-red-400",
+      Icon: AlertTriangle,
+      iconClass: "text-red-500",
     },
     {
       key: "due_soon",
       label: "即將到期",
       value: summary?.due_soon,
-      icon: <Clock className="h-5 w-5" />,
-      color: "bg-yellow-50 text-yellow-600",
-      ring: "ring-yellow-400",
+      Icon: Clock,
+      iconClass: "text-yellow-500",
     },
     {
       key: "ok",
       label: "已達標",
       value: summary?.ok,
-      icon: <CheckCircle2 className="h-5 w-5" />,
-      color: "bg-emerald-50 text-emerald-600",
-      ring: "ring-emerald-400",
+      Icon: CheckCircle2,
+      iconClass: "text-emerald-500",
     },
     {
       key: null,
       label: "總個案數",
       value: summary?.total,
-      icon: <Users className="h-5 w-5" />,
-      color: "bg-surface-100 text-gray-600",
-      ring: "ring-gray-300",
+      Icon: Users,
+      iconClass: "text-gray-500",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-      {cards.map((c) => (
-        <button
-          key={String(c.key)}
-          onClick={() => onFilter(activeFilter === c.key ? null : c.key)}
-          className={`card card-hover text-left p-5 transition-all ${
-            activeFilter === c.key ? `ring-2 ${c.ring}` : ""
-          }`}
-        >
-          <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${c.color}`}>
-            {c.icon}
-          </div>
-          <p className="mt-3 text-3xl font-black text-gray-900">
-            {c.value ?? "—"}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-gray-500">{c.label}</p>
-        </button>
-      ))}
+      {cards.map((c) => {
+        const isActive = activeFilter === c.key;
+        return (
+          <button
+            key={String(c.key)}
+            onClick={() => onFilter(isActive ? null : c.key)}
+            className={`group relative card card-hover overflow-hidden p-5 text-left transition-all ${
+              isActive ? "ring-2 ring-gray-900" : ""
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isActive ? "bg-primary-500 text-gray-900 shadow-sm" : "bg-surface-100"}`}>
+                <c.Icon className={`h-5 w-5 ${isActive ? "text-gray-900" : c.iconClass}`} />
+              </div>
+            </div>
+            {summary === null ? (
+              <div className="mt-4 h-9 w-16 animate-pulse rounded bg-gray-200" />
+            ) : (
+              <p className="mt-4 text-3xl font-black tracking-tight text-gray-900">
+                {c.value}
+              </p>
+            )}
+            <p className="mt-1 text-sm font-semibold text-gray-500">{c.label}</p>
+          </button>
+        );
+      })}
     </div>
   );
 }
