@@ -378,7 +378,7 @@ async def refine_stream(
 # ---------- check-gaps ----------
 
 GAPS_SYSTEM = (
-    "你是長照督導員的文書助理。請分析以下家電訪粗稿，判斷是否缺少以下重要項目的描述：\n"
+    "你是長照督導員的文書助理。請分析以下家訪粗稿，判斷是否缺少以下重要項目的描述：\n"
     "1. 個案生心理狀況\n"
     "2. 居家環境\n"
     "3. 主要照顧者照顧項\n"
@@ -389,6 +389,17 @@ GAPS_SYSTEM = (
     "請只回傳 JSON 陣列，每個元素是一個物件，包含：\n"
     '- "section": 缺少的項目名稱（上述 1-7 的名稱）\n'
     '- "hint": 一句簡短的建議提示（例如「建議補充個案目前的情緒狀態與身體狀況」）\n\n'
+    "如果粗稿內容充分涵蓋所有項目，請回傳空陣列 []。\n"
+    "只輸出 JSON，不要加任何說明文字。"
+)
+
+PHONE_GAPS_SYSTEM = (
+    "你是長照督導員的文書助理。請分析以下電訪粗稿，判斷是否缺少以下重要項目的描述：\n"
+    "1. 身體狀況\n"
+    "2. 服務狀況\n\n"
+    "請只回傳 JSON 陣列，每個元素是一個物件，包含：\n"
+    '- "section": 缺少的項目名稱（上述 1-2 的名稱）\n'
+    '- "hint": 一句簡短的建議提示（例如「建議補充個案目前的身體狀況與自覺症狀」）\n\n'
     "如果粗稿內容充分涵蓋所有項目，請回傳空陣列 []。\n"
     "只輸出 JSON，不要加任何說明文字。"
 )
@@ -404,12 +415,13 @@ async def check_gaps(
 
     client = _get_client()
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
+    gaps_prompt = PHONE_GAPS_SYSTEM if body.visit_type == "phone" else GAPS_SYSTEM
 
     try:
         response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": GAPS_SYSTEM},
+                {"role": "system", "content": gaps_prompt},
                 {"role": "user", "content": f"以下是{visit_label}粗稿：\n\n{body.text}"},
             ],
             max_tokens=500,
