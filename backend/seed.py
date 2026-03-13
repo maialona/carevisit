@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session, engine, Base
 from app.core.security import hash_password
-from app.models.models import Organization, User, UserRole
+from app.models.models import Organization, User, UserRole, MonthlyVisitSchedule  # noqa: F401 — ensures table is registered with Base.metadata
 
 
 async def seed() -> None:
