@@ -209,7 +209,7 @@ export default function CaseProfilesPage() {
                   <th className="px-4 py-3 min-w-[5rem]">姓名</th>
                   <th className="px-4 py-3 min-w-[8rem]">身分證字號</th>
                   <th className="px-4 py-3 min-w-[5rem]">居督</th>
-                  <th className="px-4 py-3 w-12">性別</th>
+                  <th className="px-4 py-3 w-12 whitespace-nowrap">性別</th>
                   <th className="px-4 py-3 min-w-[5.5rem]">服務狀態</th>
                   <th className="px-4 py-3 min-w-[7rem]">手機</th>
                   <th className="px-4 py-3 w-16">地址</th>

@@ -126,24 +126,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Compliance alert widget */}
-      {complianceSummary && (complianceSummary.overdue > 0 || complianceSummary.due_soon > 0) && (
-        <button
-          onClick={() => navigate("/schedule?status_filter=overdue")}
-          className="flex w-full items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 px-5 py-4 text-left transition-all hover:border-yellow-300 hover:shadow-sm"
-        >
-          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-500" />
-          <span className="flex-1 text-sm font-semibold text-yellow-800">
-            {complianceSummary.overdue > 0 && `${complianceSummary.overdue} 個案逾期`}
-            {complianceSummary.overdue > 0 && complianceSummary.due_soon > 0 && " · "}
-            {complianceSummary.due_soon > 0 && `${complianceSummary.due_soon} 個案即將到期`}
-          </span>
-          <span className="flex items-center gap-1 text-xs font-bold text-yellow-600">
-            查看全部 <ArrowRight className="h-3.5 w-3.5" />
-          </span>
-        </button>
-      )}
-
       {/* Quick actions */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <QuickAction
@@ -152,6 +134,23 @@ export default function DashboardPage() {
           desc="建立家訪或電訪紀錄"
           onClick={() => navigate("/records/new")}
         />
+        {complianceSummary && (complianceSummary.overdue > 0 || complianceSummary.due_soon > 0) && (
+          <QuickAction
+            icon={AlertTriangle}
+            title={
+              complianceSummary.overdue > 0
+                ? `${complianceSummary.overdue} 個案逾期`
+                : `${complianceSummary.due_soon} 個案即將到期`
+            }
+            desc={
+              complianceSummary.overdue > 0 && complianceSummary.due_soon > 0
+                ? `另有 ${complianceSummary.due_soon} 個案即將到期`
+                : "點擊查看詳情"
+            }
+            alert
+            onClick={() => navigate("/schedule?status_filter=overdue")}
+          />
+        )}
         <QuickAction
           icon={Sparkles}
           title="AI 助理"
@@ -253,12 +252,14 @@ function QuickAction({
   title,
   desc,
   highlight,
+  alert,
   onClick,
 }: {
   icon: LucideIcon;
   title: string;
   desc: string;
   highlight?: boolean;
+  alert?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -270,19 +271,24 @@ function QuickAction({
           : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-card-hover"
       }`}
     >
-      <div
-        className={`flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 ${
-          highlight ? "bg-primary-500 text-gray-900" : "bg-surface-100 text-gray-900"
-        }`}
-      >
-        <Icon className="h-6 w-6" />
+      <div className="relative">
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 ${
+            highlight ? "bg-primary-500 text-gray-900" : alert ? "bg-orange-50 text-orange-500" : "bg-surface-100 text-gray-900"
+          }`}
+        >
+          <Icon className="h-6 w-6" />
+        </div>
+        {alert && (
+          <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-500 ring-2 ring-white" />
+        )}
       </div>
       <div>
         <div className="flex items-center gap-2">
-          <p className={`text-base font-bold ${highlight ? "text-white" : "text-gray-900"}`}>
+          <p className={`text-base font-bold ${highlight ? "text-white" : alert ? "text-orange-600" : "text-gray-900"}`}>
             {title}
           </p>
-          <ArrowRight className={`h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 ${highlight ? "text-primary-500" : "text-gray-400"}`} />
+          <ArrowRight className={`h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 ${highlight ? "text-primary-500" : alert ? "text-orange-400" : "text-gray-400"}`} />
         </div>
         <p className={`mt-1 text-xs font-medium ${highlight ? "text-gray-400" : "text-gray-500"}`}>
           {desc}

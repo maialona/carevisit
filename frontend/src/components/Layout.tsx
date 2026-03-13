@@ -126,7 +126,7 @@ export default function Layout() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 tracking-tight">CareVisit</h1>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider -mt-0.5">長照管理系統</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider -mt-0.5">家電訪管理幫手</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-4 pt-4">
