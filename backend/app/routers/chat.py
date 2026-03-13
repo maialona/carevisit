@@ -192,6 +192,38 @@ AGENT_FUNCTIONS = [
             },
         },
     },
+    {
+        "name": "update_record_status",
+        "description": "將草稿訪視紀錄標記為已完成。未帶 confirm=true 時只回傳預覽，不實際寫入",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name"],
+            "properties": {
+                "case_name": {"type": "string", "description": "個案姓名"},
+                "visit_date": {"type": "string", "description": "訪視日期（YYYY-MM-DD），用於縮小範圍"},
+                "visit_type": {"type": "string", "enum": ["home", "phone"], "description": "訪視類型，用於縮小範圍"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "設為 true 才實際寫入，否則只回傳預覽",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_upcoming_visits",
+        "description": "查詢未來幾天內需要訪視的個案清單，依排程日計算",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "days_ahead": {
+                    "type": "integer",
+                    "description": "查詢未來幾天內的排程，預設 7 天",
+                },
+                "year": {"type": "integer", "description": "查詢年份，預設當月"},
+                "month": {"type": "integer", "description": "查詢月份（1-12），預設當月"},
+            },
+        },
+    },
 ]
 
 
@@ -757,6 +789,137 @@ async def _exec_create_draft_record(args: dict, current_user: User, db: AsyncSes
     return f"已成功建立草稿紀錄（ID: {record.id}）：{case_name} {vt_label} {visit_date_str}。您可以到訪視紀錄頁面查看並完成填寫。"
 
 
+async def _exec_update_record_status(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "")
+    visit_date_str = args.get("visit_date", "")
+    visit_type_str = args.get("visit_type", "")
+    confirm = args.get("confirm", False)
+
+    if not case_name:
+        return "請提供個案姓名。"
+
+    # Only own records for non-admin
+    if current_user.role == UserRole.admin:
+        org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+        q = select(VisitRecord).where(
+            VisitRecord.user_id.in_(org_user_ids),
+            VisitRecord.case_name.ilike(f"%{case_name}%"),
+            VisitRecord.status == RecordStatus.draft,
+        )
+    else:
+        q = select(VisitRecord).where(
+            VisitRecord.user_id == current_user.id,
+            VisitRecord.case_name.ilike(f"%{case_name}%"),
+            VisitRecord.status == RecordStatus.draft,
+        )
+
+    if visit_date_str:
+        try:
+            vd = datetime.strptime(visit_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            q = q.where(
+                VisitRecord.visit_date >= vd,
+                VisitRecord.visit_date < vd + timedelta(days=1),
+            )
+        except ValueError:
+            return f"日期格式錯誤：{visit_date_str}，請使用 YYYY-MM-DD。"
+
+    if visit_type_str in ("home", "phone"):
+        q = q.where(VisitRecord.visit_type == VisitType(visit_type_str))
+
+    q = q.order_by(VisitRecord.visit_date.desc()).limit(5)
+    result = await db.execute(q)
+    records = result.scalars().all()
+
+    if not records:
+        return f"找不到「{case_name}」的草稿紀錄。"
+    if len(records) > 1:
+        lines = []
+        for r in records:
+            vt = "家訪" if r.visit_type == VisitType.home else "電訪"
+            d = r.visit_date.strftime("%Y/%m/%d")
+            lines.append(f"- [{vt}] {d}")
+        return f"找到多筆草稿：\n" + "\n".join(lines) + "\n請提供訪視日期或類型以縮小範圍。"
+
+    r = records[0]
+    vt_label = "家訪" if r.visit_type == VisitType.home else "電訪"
+    d = r.visit_date.strftime("%Y/%m/%d")
+    preview = f"【預覽】即將將「{r.case_name}」{d} {vt_label}草稿標記為已完成。如確認請再次發送並加上 confirm=true。"
+
+    if not confirm:
+        return preview
+
+    r.status = RecordStatus.completed
+    r.updated_at = utcnow()
+    await db.commit()
+    return f"已成功將「{r.case_name}」{d} {vt_label}紀錄標記為已完成。"
+
+
+async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSession) -> str:
+    today = date.today()
+    days_ahead = min(args.get("days_ahead", 7), 90)
+    year = args.get("year", today.year)
+    month = args.get("month", today.month)
+
+    # Get all cases in scope
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+    result = await db.execute(q)
+    cases = result.scalars().all()
+
+    if not cases:
+        return "目前沒有個案資料。"
+
+    case_ids = [c.id for c in cases]
+    case_map = {c.id: c for c in cases}
+
+    # Fetch monthly overrides for the target month
+    monthly_r = await db.execute(
+        select(MonthlyVisitSchedule).where(
+            MonthlyVisitSchedule.case_profile_id.in_(case_ids),
+            MonthlyVisitSchedule.year == year,
+            MonthlyVisitSchedule.month == month,
+        )
+    )
+    monthly_map: dict[uuid.UUID, int] = {
+        m.case_profile_id: m.preferred_day for m in monthly_r.scalars().all()
+    }
+
+    # Fetch default schedules
+    default_r = await db.execute(
+        select(VisitSchedule).where(VisitSchedule.case_profile_id.in_(case_ids))
+    )
+    default_map: dict[uuid.UUID, int | None] = {
+        s.case_profile_id: s.preferred_day_of_month for s in default_r.scalars().all()
+    }
+
+    # Determine reference date window
+    window_start = today
+    window_end = today + timedelta(days=days_ahead)
+
+    upcoming = []
+    for cid in case_ids:
+        preferred_day = monthly_map.get(cid) or default_map.get(cid)
+        if not preferred_day:
+            continue
+        try:
+            visit_date = date(year, month, preferred_day)
+        except ValueError:
+            continue  # invalid day for month (e.g. Feb 30)
+
+        if window_start <= visit_date <= window_end:
+            c = case_map[cid]
+            source = "月份排程" if cid in monthly_map else "預設排程"
+            upcoming.append((visit_date, c.name, source))
+
+    if not upcoming:
+        label = f"{year}/{month:02d}" if (year != today.year or month != today.month) else "近期"
+        return f"{label}內沒有排定訪視的個案（查詢範圍：{days_ahead} 天）。"
+
+    upcoming.sort(key=lambda x: x[0])
+    lines = [f"- {d.strftime('%m/%d')}　{name}（{source}）" for d, name, source in upcoming]
+    return f"未來 {days_ahead} 天內排定訪視的個案（共 {len(upcoming)} 筆）：\n" + "\n".join(lines)
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -769,6 +932,8 @@ FUNCTION_MAP = {
     "search_cases": _exec_search_cases,
     "create_draft_record": _exec_create_draft_record,
     "set_visit_schedule": _exec_set_visit_schedule,
+    "update_record_status": _exec_update_record_status,
+    "get_upcoming_visits": _exec_get_upcoming_visits,
 }
 
 
