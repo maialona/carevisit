@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { X, Upload, Loader2, FileSpreadsheet } from "lucide-react";
+import { X, Loader2, FileSpreadsheet } from "lucide-react";
 import { caseProfilesApi } from "../../api/caseProfiles";
 import { useToast } from "../../contexts/ToastContext";
 import type { ImportPreviewResponse } from "../../types";
