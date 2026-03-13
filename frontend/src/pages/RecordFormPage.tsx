@@ -52,8 +52,12 @@ export default function RecordFormPage() {
   // Step 1
   const [caseName, setCaseName] = useState(searchParams.get("case_name") || "");
   const [orgName, setOrgName] = useState(searchParams.get("org_name") || "");
-  const [visitType, setVisitType] = useState<VisitType>("home");
-  const [caseProfileId, setCaseProfileId] = useState<string | null>(null);
+  const [visitType, setVisitType] = useState<VisitType>(
+    (searchParams.get("visit_type") as VisitType) || "home"
+  );
+  const [caseProfileId, setCaseProfileId] = useState<string | null>(
+    searchParams.get("case_profile_id") || null
+  );
   const [caseSearch, setCaseSearch] = useState(searchParams.get("case_name") || "");
   const [caseDropdownResults, setCaseDropdownResults] = useState<CaseProfile[]>([]);
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);

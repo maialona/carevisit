@@ -99,8 +99,9 @@ def _home_compliance(
 _STATUS_ORDER = {
     ComplianceStatus.ok: 0,
     ComplianceStatus.pending: 1,
-    ComplianceStatus.due_soon: 2,
-    ComplianceStatus.overdue: 3,
+    ComplianceStatus.no_record: 2,
+    ComplianceStatus.due_soon: 3,
+    ComplianceStatus.overdue: 4,
 }
 
 
@@ -115,6 +116,11 @@ def compute_compliance(
     """
     if today is None:
         today = date.today()
+
+    # Case has absolutely no completed records of any type
+    if last_phone_date is None and last_home_date is None:
+        no_rec = VisitComplianceDetail(status=ComplianceStatus.no_record)
+        return no_rec, no_rec, ComplianceStatus.no_record
 
     phone = _phone_compliance(last_phone_date, last_home_date, today)
     home = _home_compliance(last_home_date, today)

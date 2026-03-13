@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { scheduleApi } from "../api/schedule";
 import type {
@@ -20,6 +20,7 @@ import {
   X,
   Bell,
   BellOff,
+  FilePlus,
 } from "lucide-react";
 
 // ─── Badge ─────────────────────────────────────────────────────────────────
@@ -37,6 +38,12 @@ function ComplianceStatusBadge({ status }: { status: ComplianceStatus }) {
       <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-500">
         <Clock className="h-3 w-3" />
         待訪
+      </span>
+    );
+  if (status === "no_record")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-400">
+        無紀錄
       </span>
     );
   if (status === "due_soon")
@@ -237,10 +244,12 @@ function ComplianceTable({
   items,
   isAdmin,
   onEdit,
+  onNewRecord,
 }: {
   items: CaseComplianceItem[];
   isAdmin: boolean;
   onEdit: (item: CaseComplianceItem) => void;
+  onNewRecord: (item: CaseComplianceItem, visitType: "home" | "phone") => void;
 }) {
   if (items.length === 0) {
     return (
@@ -275,7 +284,18 @@ function ComplianceTable({
                 </td>
               )}
               <td className="px-4 py-3">
-                <ComplianceStatusBadge status={item.phone_compliance.status} />
+                <div className="flex items-center gap-1.5">
+                  <ComplianceStatusBadge status={item.phone_compliance.status} />
+                  {item.overall_status === "no_record" && (
+                    <button
+                      onClick={() => onNewRecord(item, "phone")}
+                      title="新增電訪紀錄"
+                      className="rounded-lg p-1 text-gray-300 hover:bg-surface-100 hover:text-blue-500 transition-colors"
+                    >
+                      <FilePlus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
                 {item.phone_compliance.last_date && (
                   <p className="mt-0.5 text-xs text-gray-400">
                     {item.phone_compliance.last_date}
@@ -283,7 +303,18 @@ function ComplianceTable({
                 )}
               </td>
               <td className="px-4 py-3">
-                <ComplianceStatusBadge status={item.home_compliance.status} />
+                <div className="flex items-center gap-1.5">
+                  <ComplianceStatusBadge status={item.home_compliance.status} />
+                  {item.overall_status === "no_record" && (
+                    <button
+                      onClick={() => onNewRecord(item, "home")}
+                      title="新增家訪紀錄"
+                      className="rounded-lg p-1 text-gray-300 hover:bg-surface-100 hover:text-blue-500 transition-colors"
+                    >
+                      <FilePlus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
                 {item.home_compliance.last_date && (
                   <p className="mt-0.5 text-xs text-gray-400">
                     {item.home_compliance.last_date}
@@ -320,6 +351,7 @@ function ComplianceTable({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
 
@@ -427,6 +459,11 @@ export default function SchedulePage() {
             items={data?.items ?? []}
             isAdmin={isAdmin}
             onEdit={setEditItem}
+            onNewRecord={(item, visitType) =>
+              navigate(
+                `/records/new?case_name=${encodeURIComponent(item.case_name)}&case_profile_id=${item.case_profile_id}&visit_type=${visitType}`
+              )
+            }
           />
         )}
 
