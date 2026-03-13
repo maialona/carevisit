@@ -15,6 +15,7 @@ import ClientDetailPage from "./pages/ClientDetailPage";
 import UsersManagementPage from "./pages/admin/UsersManagementPage";
 import CaseProfilesPage from "./pages/admin/CaseProfilesPage";
 import AdminRoute from "./components/AdminRoute";
+import SchedulePage from "./pages/SchedulePage";
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="/records/:id/edit" element={<RecordFormPage />} />
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/clients/detail" element={<ClientDetailPage />} />
+              <Route path="/schedule" element={<SchedulePage />} />
 
               <Route element={<AdminRoute />}>
                 <Route path="/admin/users" element={<UsersManagementPage />} />

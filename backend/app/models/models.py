@@ -124,6 +124,23 @@ class CaseProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     organization: Mapped["Organization"] = relationship(back_populates="case_profiles")
+    visit_schedule: Mapped["VisitSchedule | None"] = relationship(back_populates="case_profile", uselist=False)
+
+
+class VisitSchedule(Base):
+    __tablename__ = "visit_schedules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    case_profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("case_profiles.id", ondelete="CASCADE"),
+        nullable=False, unique=True, index=True
+    )
+    preferred_day_of_month: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-28
+    reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    case_profile: Mapped["CaseProfile"] = relationship(back_populates="visit_schedule")
 
 
 class ChatSession(Base):

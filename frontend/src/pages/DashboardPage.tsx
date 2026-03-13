@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
 import { statsApi, type DashboardStats } from "../api/stats";
-import type { VisitRecord } from "../types";
+import { scheduleApi } from "../api/schedule";
+import type { ComplianceSummary, VisitRecord } from "../types";
 import {
   Home,
   Phone,
@@ -15,6 +16,7 @@ import {
   Calendar,
   Sparkles,
   CheckCircle2,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,12 +27,14 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [complianceSummary, setComplianceSummary] = useState<ComplianceSummary | null>(null);
 
   useEffect(() => {
     statsApi.getDashboardStats()
       .then(setStats)
       .catch((err) => console.error("Failed to load dashboard stats", err))
       .finally(() => setLoadingStats(false));
+    scheduleApi.getSummary().then(setComplianceSummary).catch(() => {});
   }, []);
 
   const hour = new Date().getHours();
@@ -121,6 +125,24 @@ export default function DashboardPage() {
           className="col-span-1"
         />
       </div>
+
+      {/* Compliance alert widget */}
+      {complianceSummary && (complianceSummary.overdue > 0 || complianceSummary.due_soon > 0) && (
+        <button
+          onClick={() => navigate("/schedule?status_filter=overdue")}
+          className="flex w-full items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 px-5 py-4 text-left transition-all hover:border-yellow-300 hover:shadow-sm"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-500" />
+          <span className="flex-1 text-sm font-semibold text-yellow-800">
+            {complianceSummary.overdue > 0 && `${complianceSummary.overdue} 個案逾期`}
+            {complianceSummary.overdue > 0 && complianceSummary.due_soon > 0 && " · "}
+            {complianceSummary.due_soon > 0 && `${complianceSummary.due_soon} 個案即將到期`}
+          </span>
+          <span className="flex items-center gap-1 text-xs font-bold text-yellow-600">
+            查看全部 <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </button>
+      )}
 
       {/* Quick actions */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

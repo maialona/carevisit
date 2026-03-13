@@ -174,6 +174,54 @@ export interface ClientRecordParams {
   page_size?: number;
 }
 
+// --- Schedule & Compliance ---
+export type ComplianceStatus = "ok" | "due_soon" | "overdue";
+
+export interface VisitSchedule {
+  id: string;
+  case_profile_id: string;
+  preferred_day_of_month?: number | null;
+  reminder_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitComplianceDetail {
+  status: ComplianceStatus;
+  last_date?: string | null;
+  due_by?: string | null;
+}
+
+export interface CaseComplianceItem {
+  case_profile_id: string;
+  case_name: string;
+  id_number: string;
+  supervisor?: string | null;
+  phone_compliance: VisitComplianceDetail;
+  home_compliance: VisitComplianceDetail;
+  overall_status: ComplianceStatus;
+  schedule?: VisitSchedule | null;
+}
+
+export interface ComplianceSummary {
+  ok: number;
+  due_soon: number;
+  overdue: number;
+  total: number;
+}
+
+export interface VisitScheduleUpsert {
+  preferred_day_of_month?: number | null;
+  reminder_enabled: boolean;
+}
+
+export interface ComplianceListParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  status_filter?: ComplianceStatus;
+}
+
 // --- AI ---
 export type ToneStyle = "professional" | "warm" | "concise" | "detailed";
 

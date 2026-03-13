@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import math
 import uuid
 from datetime import date, datetime
@@ -269,6 +270,60 @@ class ImportConfirmResponse(BaseModel):
     created: int
     updated: int
     errors: int
+
+
+# --- Schedule & Compliance ---
+class ComplianceStatus(str, enum.Enum):
+    ok = "ok"
+    due_soon = "due_soon"
+    overdue = "overdue"
+
+
+class VisitScheduleUpsert(BaseModel):
+    preferred_day_of_month: Optional[int] = None
+    reminder_enabled: bool = True
+
+
+class VisitScheduleResponse(BaseModel):
+    id: uuid.UUID
+    case_profile_id: uuid.UUID
+    preferred_day_of_month: Optional[int] = None
+    reminder_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class VisitComplianceDetail(BaseModel):
+    status: ComplianceStatus
+    last_date: Optional[date] = None
+    due_by: Optional[date] = None
+
+
+class CaseComplianceItem(BaseModel):
+    case_profile_id: uuid.UUID
+    case_name: str
+    id_number: str
+    supervisor: Optional[str] = None
+    phone_compliance: VisitComplianceDetail
+    home_compliance: VisitComplianceDetail
+    overall_status: ComplianceStatus
+    schedule: Optional[VisitScheduleResponse] = None
+
+
+class ComplianceSummary(BaseModel):
+    ok: int
+    due_soon: int
+    overdue: int
+    total: int
+
+
+class ComplianceListParams(BaseModel):
+    page: int = 1
+    page_size: int = 20
+    search: Optional[str] = None
+    status_filter: Optional[ComplianceStatus] = None
 
 
 # --- Client Card ---

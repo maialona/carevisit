@@ -13,7 +13,7 @@ import app.core.logging as app_logging
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import ai, auth, case_profiles, chat, clients, export, records, users, stats
+from app.routers import ai, auth, case_profiles, chat, clients, export, records, users, stats, schedule
 
 
 @asynccontextmanager
@@ -47,6 +47,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
               ADD COLUMN IF NOT EXISTS case_profile_id UUID
               REFERENCES case_profiles(id) ON DELETE SET NULL
         """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS visit_schedules (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                case_profile_id UUID NOT NULL UNIQUE REFERENCES case_profiles(id) ON DELETE CASCADE,
+                preferred_day_of_month INTEGER CHECK (preferred_day_of_month BETWEEN 1 AND 28),
+                reminder_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
     yield
     await engine.dispose()
 
@@ -71,6 +81,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(case_profiles.router, prefix="/api")
+app.include_router(schedule.router, prefix="/api")
 
 
 def decode_bytes(obj):
