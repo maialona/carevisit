@@ -24,6 +24,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(50)"
         ))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS case_profiles (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                org_id UUID NOT NULL REFERENCES organizations(id),
+                id_number VARCHAR(20) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                supervisor VARCHAR(100),
+                gender VARCHAR(10),
+                service_status VARCHAR(50),
+                phone VARCHAR(30),
+                address VARCHAR(300),
+                district VARCHAR(50),
+                road VARCHAR(100),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(org_id, id_number)
+            )
+        """))
     yield
     await engine.dispose()
 
