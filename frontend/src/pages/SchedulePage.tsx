@@ -405,7 +405,7 @@ export default function SchedulePage() {
   return (
     <div className="animate-fade-in space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-gray-900">排程達成率</h1>
+        <h1 className="text-2xl font-black text-gray-900">排程管理</h1>
         <p className="mt-1 text-sm font-medium text-gray-500">
           電訪：每月至少 1 次；家訪：每 90 天至少 1 次（當月家訪可免電訪）
         </p>

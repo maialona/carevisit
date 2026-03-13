@@ -168,7 +168,7 @@ export default function DashboardPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-100">
               <Calendar className="h-4 w-4 text-gray-900" />
             </div>
-            <h3 className="text-base font-bold text-gray-900">近期活動</h3>
+            <h3 className="text-base font-bold text-gray-900">近期紀錄</h3>
           </div>
           <button
             onClick={() => navigate("/records")}
@@ -189,7 +189,7 @@ export default function DashboardPage() {
             ))
           ) : (
             <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-surface-50 py-10 text-sm font-medium text-gray-400">
-              {loadingStats ? "載入中..." : "目前尚無近期活動"}
+              {loadingStats ? "載入中..." : "目前尚無近期紀錄"}
             </div>
           )}
         </div>
