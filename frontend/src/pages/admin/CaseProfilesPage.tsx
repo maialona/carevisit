@@ -210,7 +210,7 @@ export default function CaseProfilesPage() {
                   <th className="px-4 py-3">性別</th>
                   <th className="px-4 py-3">服務狀態</th>
                   <th className="px-4 py-3">手機</th>
-                  <th className="px-4 py-3">地址</th>
+                  <th className="px-4 py-3 w-16">地址</th>
                   <th className="px-4 py-3">操作</th>
                 </tr>
               </thead>
