@@ -36,6 +36,9 @@ export const caseProfilesApi = {
   importConfirm: (rows: ImportPreviewRow[]) =>
     api.post<ImportConfirmResponse>("/case-profiles/import/confirm", { rows }),
 
+  batchDelete: (ids: string[]) =>
+    api.delete<{ deleted: number }>("/case-profiles/batch", { data: { ids } }),
+
   searchNames: (q: string) =>
     api.get<string[]>("/case-profiles/search", { params: { q } }),
 };

@@ -133,6 +133,29 @@ async def update_case_profile(
     return case
 
 
+@router.delete("/batch", status_code=status.HTTP_200_OK)
+async def batch_delete_case_profiles(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    ids = [uuid.UUID(i) for i in body.get("ids", [])]
+    if not ids:
+        raise HTTPException(status_code=400, detail="未提供 ID 列表")
+
+    result = await db.execute(
+        select(CaseProfile).where(
+            CaseProfile.id.in_(ids),
+            CaseProfile.org_id == current_user.org_id,
+        )
+    )
+    cases = result.scalars().all()
+    for case in cases:
+        await db.delete(case)
+    await db.flush()
+    return {"deleted": len(cases)}
+
+
 @router.delete("/{case_id}", status_code=status.HTTP_200_OK)
 async def delete_case_profile(
     case_id: uuid.UUID,

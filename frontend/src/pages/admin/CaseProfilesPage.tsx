@@ -24,6 +24,9 @@ export default function CaseProfilesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [caseToDelete, setCaseToDelete] = useState<CaseProfile | null>(null);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -34,6 +37,7 @@ export default function CaseProfilesPage() {
         service_status: statusFilter || undefined,
       });
       setData(res);
+      setSelected(new Set());
     } catch {
       showToast("無法載入個案列表", "error");
     } finally {
@@ -83,11 +87,52 @@ export default function CaseProfilesPage() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    try {
+      const { data: res } = await caseProfilesApi.batchDelete(Array.from(selected));
+      showToast(`已刪除 ${res.deleted} 筆個案`);
+      fetchData();
+    } catch {
+      showToast("批次刪除失敗", "error");
+    } finally {
+      setShowBatchDeleteConfirm(false);
+    }
+  };
+
+  const items = data?.items ?? [];
+  const allSelected = items.length > 0 && items.every((c) => selected.has(c.id));
+  const someSelected = selected.size > 0;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(items.map((c) => c.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl animate-fade-in">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-gray-900">個案管理</h2>
         <div className="flex gap-2">
+          {someSelected && (
+            <button
+              onClick={() => setShowBatchDeleteConfirm(true)}
+              className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200"
+            >
+              <Trash2 className="h-4 w-4" />
+              刪除已選 ({selected.size})
+            </button>
+          )}
           <button onClick={() => setShowImport(true)} className="btn-secondary">
             <Upload className="h-4 w-4" />
             匯入 Excel
@@ -138,6 +183,14 @@ export default function CaseProfilesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-surface-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3">姓名</th>
                   <th className="px-4 py-3">身分證字號</th>
                   <th className="px-4 py-3">居督</th>
@@ -148,15 +201,26 @@ export default function CaseProfilesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data?.items.length === 0 && (
+                {items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                       尚無個案資料
                     </td>
                   </tr>
                 )}
-                {data?.items.map((c) => (
-                  <tr key={c.id} className="transition-colors hover:bg-surface-50">
+                {items.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`transition-colors hover:bg-surface-50 ${selected.has(c.id) ? "bg-primary-50" : ""}`}
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleOne(c.id)}
+                        className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
                     <td className="px-4 py-3 text-gray-600">{c.id_number}</td>
                     <td className="px-4 py-3 text-gray-600">{c.supervisor ?? "-"}</td>
@@ -244,6 +308,16 @@ export default function CaseProfilesPage() {
         danger
         onConfirm={handleDelete}
         onCancel={() => { setShowDeleteConfirm(false); setCaseToDelete(null); }}
+      />
+
+      <ConfirmModal
+        open={showBatchDeleteConfirm}
+        title="批次刪除個案"
+        message={`確定要刪除已選取的 ${selected.size} 筆個案嗎？此操作無法復原。`}
+        confirmLabel="全部刪除"
+        danger
+        onConfirm={handleBatchDelete}
+        onCancel={() => setShowBatchDeleteConfirm(false)}
       />
     </div>
   );
