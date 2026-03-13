@@ -27,7 +27,7 @@ async def seed() -> None:
             print("資料庫已有資料，跳過 seed。")
             return
 
-        org = Organization(name="台北長照機構")
+        org = Organization(name="長照機構")
         session.add(org)
         await session.flush()  # get org.id
 
