@@ -92,6 +92,31 @@ NARRATIVE_SYSTEM = (
     "不要輸出 markdown。"
 )
 
+PHONE_BULLET_SYSTEM = (
+    "你是長照督導員的文書助理，請將以下電訪粗稿整理為"
+    "專業的條列式紀錄，使用繁體中文。"
+    "請直接輸出 HTML 格式，架構如下（請嚴格遵守，包括每個子項目之間的 <br> 空行）：\n\n"
+    "<h5>1. 【身體狀況】</h5>\n<ul><li>…</li></ul>\n"
+    "<br>\n"
+    "<h5>2. 【服務狀況】</h5>\n<ul><li>…</li></ul>\n\n"
+    "重要：兩個子項目之間必須加上 <br> 空行，這是強制要求。"
+    "若粗稿中某些項目無相關資訊，可簡要標註「無特殊狀況」。"
+    "不要使用「・」符號，不要輸出 markdown，語氣專業簡潔。"
+)
+
+PHONE_NARRATIVE_SYSTEM = (
+    "你是長照督導員的文書助理，請將以下電訪粗稿整理為"
+    "專業的敘述式紀錄，使用繁體中文，以流暢的段落書寫，"
+    "語氣正式專業。"
+    "請直接輸出 HTML 格式，架構如下（請嚴格遵守，包括每個子項目之間的 <br> 空行）：\n\n"
+    "<h5>1. 【身體狀況】</h5>\n<p>…</p>\n"
+    "<br>\n"
+    "<h5>2. 【服務狀況】</h5>\n<p>…</p>\n\n"
+    "重要：兩個子項目之間必須加上 <br> 空行，這是強制要求。"
+    "若粗稿中某些項目無相關資訊，可簡要標註「無特殊狀況」。"
+    "不要輸出 markdown。"
+)
+
 TONE_INSTRUCTIONS = {
     "professional": "語氣正式專業，用詞精確。",
     "warm": "語氣溫暖關懷，展現同理心，適度使用較柔和的表達方式。",
@@ -213,7 +238,10 @@ async def refine(
             detail="請提供需要潤飾的文字",
         )
 
-    base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    if body.visit_type == "phone":
+        base_prompt = PHONE_BULLET_SYSTEM if body.format == "bullet" else PHONE_NARRATIVE_SYSTEM
+    else:
+        base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
     tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
@@ -280,7 +308,10 @@ async def refine_stream(
             detail="請提供需要潤飾的文字",
         )
 
-    base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    if body.visit_type == "phone":
+        base_prompt = PHONE_BULLET_SYSTEM if body.format == "bullet" else PHONE_NARRATIVE_SYSTEM
+    else:
+        base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
     tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
