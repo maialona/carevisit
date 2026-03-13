@@ -719,20 +719,18 @@ async def _exec_create_draft_record(args: dict, current_user: User, db: AsyncSes
     visit_type = VisitType(visit_type_str)
     vt_label = "家訪" if visit_type == VisitType.home else "電訪"
 
-    # Resolve case_profile_id if a matching CaseProfile exists
+    # Resolve case_profile_id and district from CaseProfile if available
     cp_q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
     cp_q = _case_filter(cp_q, current_user)
     cp_result = await db.execute(cp_q)
     cp = cp_result.scalars().first()
     case_profile_id = cp.id if cp else None
-
-    # Org name
-    org_r = await db.execute(select(Organization.name).where(Organization.id == current_user.org_id))
-    org_name = org_r.scalar() or ""
+    district = (cp.district or "") if cp else ""
 
     preview = (
         f"【預覽】即將建立草稿紀錄：\n"
         f"- 個案：{case_name}\n"
+        f"- 居住區域：{district or '（未設定）'}\n"
         f"- 類型：{vt_label}\n"
         f"- 日期：{visit_date_str}\n"
         f"- 內容（前100字）：{content[:100]}\n\n"
@@ -744,7 +742,7 @@ async def _exec_create_draft_record(args: dict, current_user: User, db: AsyncSes
 
     record = VisitRecord(
         case_name=case_name,
-        org_name=org_name,
+        org_name=district,
         user_id=current_user.id,
         visit_type=visit_type,
         visit_date=visit_date,
