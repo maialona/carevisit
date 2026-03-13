@@ -88,7 +88,7 @@ class VisitRecord(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="visit_records")
-    refinement_logs: Mapped[list["RefinementLog"]] = relationship(back_populates="record")
+    refinement_logs: Mapped[list["RefinementLog"]] = relationship(back_populates="record", cascade="all, delete-orphan")
 
 
 class RefinementLog(Base):
