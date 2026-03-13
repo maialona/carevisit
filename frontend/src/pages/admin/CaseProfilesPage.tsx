@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Upload, Pencil, Trash2, Loader2, Search, MapPin, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Upload, Pencil, Trash2, Loader2, Search, MapPin, X, ClipboardList } from "lucide-react";
 import { caseProfilesApi } from "../../api/caseProfiles";
 import { useToast } from "../../contexts/ToastContext";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -9,6 +10,7 @@ import type { CaseProfile, CaseProfileCreate, CaseProfileUpdate, PaginatedRespon
 
 export default function CaseProfilesPage() {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [data, setData] = useState<PaginatedResponse<CaseProfile> | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -269,6 +271,13 @@ export default function CaseProfilesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/records?case_name=${encodeURIComponent(c.name)}`)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
+                          title="查看紀錄"
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => { setEditingCase(c); setShowForm(true); }}
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"

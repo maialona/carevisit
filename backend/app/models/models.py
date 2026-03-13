@@ -83,6 +83,10 @@ class VisitRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    case_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("case_profiles.id"), nullable=True
+    )
+
     user: Mapped["User"] = relationship(back_populates="visit_records")
     refinement_logs: Mapped[list["RefinementLog"]] = relationship(back_populates="record")
 

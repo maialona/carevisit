@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useHotkeys } from "react-hotkeys-hook";
 import { recordsApi } from "../api/records";
 import { aiApi } from "../api/ai";
+import { caseProfilesApi } from "../api/caseProfiles";
+import { useDebounce } from "../hooks/useDebounce";
 import { useToast } from "../contexts/ToastContext";
 import VoiceRecorder from "../components/records/VoiceRecorder";
 import PhotoUploader from "../components/records/PhotoUploader";
@@ -30,7 +32,7 @@ import {
   Columns2,
   PenLine,
 } from "lucide-react";
-import type { GapItem, ToneStyle, VisitRecord } from "../types";
+import type { CaseProfile, GapItem, ToneStyle, VisitRecord } from "../types";
 
 type VisitType = "home" | "phone";
 type OutputFormat = "bullet" | "narrative";
@@ -51,6 +53,13 @@ export default function RecordFormPage() {
   const [caseName, setCaseName] = useState(searchParams.get("case_name") || "");
   const [orgName, setOrgName] = useState(searchParams.get("org_name") || "");
   const [visitType, setVisitType] = useState<VisitType>("home");
+  const [caseProfileId, setCaseProfileId] = useState<string | null>(null);
+  const [caseSearch, setCaseSearch] = useState(searchParams.get("case_name") || "");
+  const [caseDropdownResults, setCaseDropdownResults] = useState<CaseProfile[]>([]);
+  const [showCaseDropdown, setShowCaseDropdown] = useState(false);
+  const [caseSearchLoading, setCaseSearchLoading] = useState(false);
+  const caseDropdownRef = useRef<HTMLDivElement>(null);
+  const debouncedCaseSearch = useDebounce(caseSearch, 300);
   const [visitDate, setVisitDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -94,6 +103,7 @@ export default function RecordFormPage() {
       .getById(id)
       .then((r: VisitRecord) => {
         setCaseName(r.case_name);
+        setCaseSearch(r.case_name);
         setOrgName(r.org_name);
         setVisitType(r.visit_type);
         setVisitDate(r.visit_date.slice(0, 10));
@@ -101,10 +111,35 @@ export default function RecordFormPage() {
         setRefinedContent(r.refined_content);
         setOutputFormat(r.output_format);
         setAutoRefine(r.auto_refine);
+        if (r.case_profile_id) setCaseProfileId(r.case_profile_id);
       })
       .catch(() => showToast("載入紀錄失敗", "error"))
       .finally(() => setLoading(false));
   }, [id, showToast]);
+
+  // Case profile search
+  useEffect(() => {
+    if (isEdit || !debouncedCaseSearch.trim() || caseProfileId) return;
+    setCaseSearchLoading(true);
+    caseProfilesApi.getList({ search: debouncedCaseSearch, page_size: 10 })
+      .then(({ data }) => {
+        setCaseDropdownResults(data.items);
+        setShowCaseDropdown(data.items.length > 0);
+      })
+      .catch(() => {})
+      .finally(() => setCaseSearchLoading(false));
+  }, [debouncedCaseSearch, isEdit, caseProfileId]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (caseDropdownRef.current && !caseDropdownRef.current.contains(e.target as Node)) {
+        setShowCaseDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Persist autoRefine + tone to localStorage
   useEffect(() => {
@@ -221,6 +256,10 @@ export default function RecordFormPage() {
   // --- Save ---
   const save = useCallback(
     async (status: "draft" | "completed") => {
+      if (!isEdit && !caseProfileId) {
+        showToast("請從下拉清單選取個案", "error");
+        return;
+      }
       if (!caseName || !orgName) {
         showToast("請填寫個案姓名與居住區域", "error");
         return;
@@ -249,6 +288,7 @@ export default function RecordFormPage() {
             output_format: outputFormat,
             auto_refine: autoRefine,
             status,
+            ...(caseProfileId ? { case_profile_id: caseProfileId } : {}),
           });
           showToast(status === "completed" ? "紀錄已完成" : "草稿已儲存");
           navigate(`/records/${created.id}/edit`);
@@ -268,6 +308,7 @@ export default function RecordFormPage() {
       refinedContent,
       outputFormat,
       autoRefine,
+      caseProfileId,
       isEdit,
       id,
       navigate,
@@ -336,18 +377,81 @@ export default function RecordFormPage() {
       <section className="card p-5">
         <StepHeader number={1} title="基本資訊" />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
+          <div className="relative" ref={caseDropdownRef}>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               個案姓名 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={caseName}
-              onChange={(e) => setCaseName(e.target.value)}
-              disabled={isEdit}
-              placeholder="輸入個案姓名"
-              className="input-base py-3 text-[16px] md:text-sm min-h-[48px] disabled:bg-surface-50 disabled:text-gray-500"
-            />
+            {isEdit ? (
+              <input
+                type="text"
+                value={caseName}
+                disabled
+                className="input-base py-3 text-[16px] md:text-sm min-h-[48px] disabled:bg-surface-50 disabled:text-gray-500"
+              />
+            ) : (
+              <>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={caseSearch}
+                    onChange={(e) => {
+                      setCaseSearch(e.target.value);
+                      setCaseProfileId(null);
+                      setCaseName("");
+                      setShowCaseDropdown(false);
+                    }}
+                    onFocus={() => {
+                      if (caseDropdownResults.length > 0 && !caseProfileId) {
+                        setShowCaseDropdown(true);
+                      }
+                    }}
+                    placeholder="搜尋個案姓名..."
+                    className="input-base py-3 text-[16px] md:text-sm min-h-[48px] pr-8"
+                  />
+                  {caseSearchLoading && (
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
+                  )}
+                  {caseProfileId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCaseProfileId(null);
+                        setCaseName("");
+                        setCaseSearch("");
+                        setOrgName("");
+                        setCaseDropdownResults([]);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {showCaseDropdown && caseDropdownResults.length > 0 && (
+                  <ul className="absolute z-20 mt-1 w-full rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                    {caseDropdownResults.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setCaseName(p.name);
+                            setOrgName(p.district || "");
+                            setCaseProfileId(p.id);
+                            setCaseSearch(p.name);
+                            setShowCaseDropdown(false);
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm hover:bg-surface-50 transition-colors"
+                        >
+                          <span className="font-medium text-gray-900">{p.name}</span>
+                          <span className="ml-1.5 text-xs text-gray-400">（{p.id_number}）</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">

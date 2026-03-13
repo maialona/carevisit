@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.deps import get_current_user, check_record_owner_or_admin
 from app.models.models import (
+    CaseProfile,
     RecordStatus,
     User,
     VisitRecord,
@@ -47,6 +48,7 @@ async def _enrich_record(record: VisitRecord, db: AsyncSession) -> VisitRecordRe
         status=record.status.value,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        case_profile_id=record.case_profile_id,
     )
 
 
@@ -62,6 +64,7 @@ async def list_records(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     user_id: Optional[str] = Query(None),
+    case_profile_id: Optional[uuid.UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -85,6 +88,8 @@ async def list_records(
         base = base.where(VisitRecord.visit_date <= datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=timezone.utc))
     if user_id:
         base = base.where(VisitRecord.user_id == uuid.UUID(user_id))
+    if case_profile_id:
+        base = base.where(VisitRecord.case_profile_id == case_profile_id)
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -110,8 +115,21 @@ async def create_record(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    case_name = body.case_name
+    if body.case_profile_id:
+        profile_result = await db.execute(
+            select(CaseProfile).where(
+                CaseProfile.id == body.case_profile_id,
+                CaseProfile.org_id == current_user.org_id,
+            )
+        )
+        profile = profile_result.scalar_one_or_none()
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="個案不存在")
+        case_name = profile.name
+
     record = VisitRecord(
-        case_name=body.case_name,
+        case_name=case_name,
         org_name=body.org_name,
         user_id=current_user.id,
         visit_type=VisitType(body.visit_type),
@@ -121,6 +139,7 @@ async def create_record(
         output_format=OutputFormat(body.output_format),
         auto_refine=body.auto_refine,
         status=RecordStatus(body.status),
+        case_profile_id=body.case_profile_id,
     )
     db.add(record)
     await db.flush()

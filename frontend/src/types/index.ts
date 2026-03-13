@@ -51,6 +51,7 @@ export interface VisitRecord {
   status: "draft" | "completed";
   created_at: string;
   updated_at: string;
+  case_profile_id?: string;
 }
 
 export interface VisitRecordCreate {
@@ -63,6 +64,7 @@ export interface VisitRecordCreate {
   output_format?: "bullet" | "narrative";
   auto_refine?: boolean;
   status?: "draft" | "completed";
+  case_profile_id?: string;
 }
 
 export interface VisitRecordUpdate {

@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 UNIQUE(org_id, id_number)
             )
         """))
+        await conn.execute(text("""
+            ALTER TABLE visit_records
+              ADD COLUMN IF NOT EXISTS case_profile_id UUID
+              REFERENCES case_profiles(id) ON DELETE SET NULL
+        """))
     yield
     await engine.dispose()
 

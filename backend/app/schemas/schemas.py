@@ -117,6 +117,7 @@ class VisitRecordCreate(BaseModel):
     output_format: Literal["bullet", "narrative"] = "bullet"
     auto_refine: bool = False
     status: Literal["draft", "completed"] = "draft"
+    case_profile_id: Optional[uuid.UUID] = None
 
 
 class VisitRecordUpdate(BaseModel):
@@ -143,6 +144,7 @@ class VisitRecordResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    case_profile_id: Optional[uuid.UUID] = None
 
     model_config = {"from_attributes": True}
 

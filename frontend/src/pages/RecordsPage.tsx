@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { recordsApi } from "../api/records";
 import { useDebounce } from "../hooks/useDebounce";
 import Pagination from "../components/ui/Pagination";
@@ -37,6 +37,7 @@ const STATUS_OPTIONS = [
 
 export default function RecordsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [records, setRecords] = useState<VisitRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +47,7 @@ export default function RecordsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filters
-  const [caseName, setCaseName] = useState("");
+  const [caseName, setCaseName] = useState(searchParams.get("case_name") || "");
   const [visitType, setVisitType] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
