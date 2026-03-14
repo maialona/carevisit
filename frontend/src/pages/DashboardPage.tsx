@@ -320,7 +320,12 @@ function ActivityItem({
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-gray-900 leading-none">{record.case_name}</p>
+          <div className="flex items-center gap-1.5 leading-none">
+            <p className="truncate text-sm font-bold text-gray-900">{record.case_name}</p>
+            {record.org_name && (
+              <span className="shrink-0 text-xs font-medium text-gray-400">{record.org_name}</span>
+            )}
+          </div>
           <p className="mt-1.5 truncate text-xs font-semibold text-gray-400">
             {record.visit_date.slice(0, 10)}
           </p>

@@ -271,6 +271,9 @@ export default function RecordsPage() {
                     {/* Left info: name + area + status */}
                     <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                       <p className="shrink-0 text-sm font-bold text-gray-900 sm:text-[15px]">{r.case_name}</p>
+                      {r.org_name && (
+                        <span className="shrink-0 text-xs font-medium text-gray-400">{r.org_name}</span>
+                      )}
                       <span
                         className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-bold tracking-wide ${
                           r.status === "completed"
