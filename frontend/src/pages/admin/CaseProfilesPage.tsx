@@ -197,16 +197,20 @@ export default function CaseProfilesPage() {
           <option value="結案">結案</option>
         </select>
         {isSupervisor && (
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm shrink-0">
+          <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 shrink-0">
             <button
               onClick={() => { setMyOnly(false); setPage(1); }}
-              className={`px-3 py-1.5 transition-colors ${!myOnly ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-surface-50"}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-200 ${
+                !myOnly ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-surface-100"
+              }`}
             >
               全部個案
             </button>
             <button
               onClick={() => { setMyOnly(true); setPage(1); }}
-              className={`px-3 py-1.5 transition-colors ${myOnly ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-surface-50"}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-200 ${
+                myOnly ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-800 hover:bg-surface-100"
+              }`}
             >
               我的個案
             </button>
