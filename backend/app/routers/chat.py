@@ -1742,6 +1742,8 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
         "no_record": "📭 無紀錄",
     }
 
+    anchor_district = anchor.district or ""
+
     rows = []
     for c in others:
         lv = last_visits.get(c.id, {})
@@ -1753,15 +1755,20 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
         if home_detail and home_detail.due_by and overall.value in ("due_soon", "overdue"):
             days_left = (home_detail.due_by - today).days
             due_info = f"，期限剩 {days_left} 天"
-        rows.append((overall.value, c.name, st, sched_info, due_info, _full_address(c)))
+        same_district = bool(anchor_district and c.district == anchor_district)
+        rows.append((same_district, overall.value, c.name, st, sched_info, due_info, _full_address(c)))
 
-    scope_label = city or anchor.district or "同地區"
+    # Same-district cases first (closer by definition); within each group keep insertion order
+    rows.sort(key=lambda r: (0 if r[0] else 1))
+
+    scope_label = city or anchor_district or "同城市"
     lines = [
         f"**{anchor.name}** 的完整地址：{anchor_addr}\n",
-        f"以下是{scope_label}共 {len(rows)} 位個案及其完整地址，請根據地理位置由近至遠排列，並優先推薦逾期或即將到期的個案：",
+        f"以下是{scope_label}共 {len(rows)} 位個案及其完整地址。【同區】表示與丁進興同行政區，距離通常較近；【跨區】表示不同行政區。請在同區內依地理位置由近至遠排列，跨區個案排在後面，並優先推薦逾期或即將到期的個案：",
     ]
-    for _, name, st, sched_info, due_info, addr in rows:
-        lines.append(f"- **{name}**　地址：{addr}　{st}　{sched_info}{due_info}")
+    for same_dist, _, name, st, sched_info, due_info, addr in rows:
+        zone = "【同區】" if same_dist else "【跨區】"
+        lines.append(f"- {zone} **{name}**　地址：{addr}　{st}　{sched_info}{due_info}")
 
     return "\n".join(lines)
 
