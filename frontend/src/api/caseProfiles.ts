@@ -17,6 +17,7 @@ export const caseProfilesApi = {
     page_size?: number;
     search?: string;
     service_status?: string;
+    supervisor?: string;
   }) => api.get<PaginatedResponse<CaseProfile>>("/case-profiles", { params }),
 
   create: (body: CaseProfileCreate) =>

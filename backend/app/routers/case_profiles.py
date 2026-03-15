@@ -71,6 +71,7 @@ async def list_case_profiles(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
     service_status: Optional[str] = Query(None),
+    supervisor: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -86,6 +87,10 @@ async def list_case_profiles(
     if service_status:
         q = q.where(CaseProfile.service_status == service_status)
         count_q = count_q.where(CaseProfile.service_status == service_status)
+
+    if supervisor:
+        q = q.where(CaseProfile.supervisor == supervisor)
+        count_q = count_q.where(CaseProfile.supervisor == supervisor)
 
     total = (await db.execute(count_q)).scalar() or 0
     offset = (page - 1) * page_size

@@ -4,6 +4,7 @@ import { Plus, Upload, Pencil, Trash2, Loader2, Search, MapPin, X, ClipboardList
 import { caseProfilesApi } from "../../api/caseProfiles";
 import { useToast } from "../../contexts/ToastContext";
 import { usePermission } from "../../hooks/usePermission";
+import { useAuthStore } from "../../store/authStore";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import CaseProfileFormModal from "../../components/caseProfiles/CaseProfileFormModal";
 import ImportModal from "../../components/caseProfiles/ImportModal";
@@ -12,13 +13,15 @@ import type { CaseProfile, CaseProfileCreate, CaseProfileUpdate, PaginatedRespon
 export default function CaseProfilesPage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { canCreateCase, canDeleteCase } = usePermission();
+  const { canCreateCase, canDeleteCase, isSupervisor } = usePermission();
+  const user = useAuthStore((s) => s.user);
   const [data, setData] = useState<PaginatedResponse<CaseProfile> | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [myOnly, setMyOnly] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingCase, setEditingCase] = useState<CaseProfile | null>(null);
@@ -42,6 +45,7 @@ export default function CaseProfilesPage() {
         page_size: 20,
         search: search || undefined,
         service_status: statusFilter || undefined,
+        supervisor: (isSupervisor && myOnly && user?.name) ? user.name : undefined,
       });
       setData(res);
       setSelected(new Set());
@@ -54,7 +58,7 @@ export default function CaseProfilesPage() {
 
   useEffect(() => {
     fetchData();
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, myOnly]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +196,22 @@ export default function CaseProfilesPage() {
           <option value="暫停">暫停</option>
           <option value="結案">結案</option>
         </select>
+        {isSupervisor && (
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm shrink-0">
+            <button
+              onClick={() => { setMyOnly(false); setPage(1); }}
+              className={`px-3 py-1.5 transition-colors ${!myOnly ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-surface-50"}`}
+            >
+              全部個案
+            </button>
+            <button
+              onClick={() => { setMyOnly(true); setPage(1); }}
+              className={`px-3 py-1.5 transition-colors ${myOnly ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-surface-50"}`}
+            >
+              我的個案
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
