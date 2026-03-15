@@ -685,10 +685,9 @@ async def _exec_get_case_profile(args: dict, current_user: User, db: AsyncSessio
             parts.append(f"服務狀態：{c.service_status}")
         if c.phone:
             parts.append(f"電話：{c.phone}")
-        if c.address:
-            parts.append(f"地址：{c.address}")
-        if c.district:
-            parts.append(f"地區：{c.district}")
+        full_address = "".join(filter(None, [c.address, c.district, c.road]))
+        if full_address:
+            parts.append(f"地址：{full_address}")
         if c.supervisor:
             parts.append(f"督導員：{c.supervisor}")
         lines.append("、".join(parts))
