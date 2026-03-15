@@ -366,12 +366,12 @@ AGENT_FUNCTIONS = [
     },
     {
         "name": "get_same_district_cases",
-        "description": "查詢與指定個案同地區的其他個案，適合規劃「順路家訪」。先查指定個案的地區，再列出同區其他個案的訪視狀態與排程。",
+        "description": "查詢與指定個案同城市的其他個案（含完整地址），由 AI 依地理知識判斷順路家訪順序。工具回傳完整地址清單，AI 應由近至遠排序並優先推薦逾期個案。",
         "parameters": {
             "type": "object",
             "required": ["case_name"],
             "properties": {
-                "case_name": {"type": "string", "description": "作為地區基準的個案姓名"},
+                "case_name": {"type": "string", "description": "作為地理基準的個案姓名"},
             },
         },
     },
@@ -1681,7 +1681,7 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
     if not case_name:
         return "請提供個案姓名。"
 
-    # Look up the target case to get its district
+    # Look up the anchor case
     anchor_q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
     anchor_q = _case_filter(anchor_q, current_user)
     anchors = (await db.execute(anchor_q)).scalars().all()
@@ -1693,20 +1693,37 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
         return f"找到多筆相符個案：{names}，請提供更精確的姓名。"
 
     anchor = anchors[0]
-    district = anchor.district
-    if not district:
-        return f"個案「{anchor.name}」尚未設定地區，無法查詢同地區個案。"
 
-    # Fetch all other cases in the same district
-    others_q = select(CaseProfile).where(
-        CaseProfile.district == district,
-        CaseProfile.id != anchor.id,
-    )
-    others_q = _case_filter(others_q, current_user)
+    # Build full address helper
+    def _full_address(c: CaseProfile) -> str:
+        parts = [c.address or "", c.district or "", c.road or ""]
+        return "".join(p for p in parts if p).strip() or "（地址未填）"
+
+    anchor_addr = _full_address(anchor)
+
+    # Determine city from address (first 3 chars, e.g. 臺南市)
+    city = (anchor.address or "")[:3].strip()
+    if city:
+        others_q = select(CaseProfile).where(
+            CaseProfile.address.ilike(f"%{city}%"),
+            CaseProfile.id != anchor.id,
+        )
+    else:
+        # Fallback to district match
+        district = anchor.district
+        if not district:
+            return f"個案「{anchor.name}」尚未設定地址或地區，無法查詢附近個案。"
+        others_q = select(CaseProfile).where(
+            CaseProfile.district == district,
+            CaseProfile.id != anchor.id,
+        )
+
+    others_q = _case_filter(others_q, current_user).limit(30)
     others = (await db.execute(others_q)).scalars().all()
 
     if not others:
-        return f"「{anchor.name}」所在的{district}目前沒有其他個案。"
+        scope = city or anchor.district
+        return f"「{anchor.name}」附近（{scope}）目前沒有其他個案。"
 
     today = date.today()
     case_ids = [c.id for c in others]
@@ -1736,17 +1753,16 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
         if home_detail and home_detail.due_by and overall.value in ("due_soon", "overdue"):
             days_left = (home_detail.due_by - today).days
             due_info = f"，期限剩 {days_left} 天"
-        rows.append((overall.value, c.name, st, sched_info, due_info))
+        rows.append((overall.value, c.name, st, sched_info, due_info, _full_address(c)))
 
-    # Sort: overdue first, then due_soon, then others
-    priority = {"overdue": 0, "due_soon": 1, "no_record": 2, "pending": 3, "ok": 4}
-    rows.sort(key=lambda r: priority.get(r[0], 9))
+    scope_label = city or anchor.district or "同地區"
+    lines = [
+        f"**{anchor.name}** 的完整地址：{anchor_addr}\n",
+        f"以下是{scope_label}共 {len(rows)} 位個案及其完整地址，請根據地理位置由近至遠排列，並優先推薦逾期或即將到期的個案：",
+    ]
+    for _, name, st, sched_info, due_info, addr in rows:
+        lines.append(f"- **{name}**　地址：{addr}　{st}　{sched_info}{due_info}")
 
-    lines = [f"**{anchor.name}** 位於 **{district}**，同地區共有 {len(others)} 位個案：\n"]
-    for _, name, st, sched_info, due_info in rows:
-        lines.append(f"- **{name}** {st}　{sched_info}{due_info}")
-
-    lines.append(f"\n如需查看某位個案的詳細資料或地址，可進一步詢問。")
     return "\n".join(lines)
 
 
