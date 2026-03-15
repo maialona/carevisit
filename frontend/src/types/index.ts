@@ -26,6 +26,15 @@ export interface LoginFormValues {
   password: string;
 }
 
+// --- Org ---
+export interface OrgSettings {
+  id: string;
+  name: string;
+  supervisor_can_create_case: boolean;
+  supervisor_can_delete_case: boolean;
+  created_at: string;
+}
+
 // --- Generic ---
 export interface PaginatedResponse<T> {
   items: T[];

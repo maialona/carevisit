@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
+import { useOrgStore } from "./store/orgStore";
 import { ToastProvider } from "./contexts/ToastContext";
 import ToastContainer from "./components/ui/Toast";
 import PrivateRoute from "./components/PrivateRoute";
@@ -28,12 +29,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const fetchUser = useAuthStore((s) => s.fetchUser);
+  const fetchOrgSettings = useOrgStore((s) => s.fetchSettings);
 
   useEffect(() => {
     if (accessToken) {
       fetchUser();
+      fetchOrgSettings();
     }
-  }, [accessToken, fetchUser]);
+  }, [accessToken, fetchUser, fetchOrgSettings]);
 
   return (
     <ToastProvider>
@@ -58,9 +61,10 @@ export default function App() {
               <Route path="/clients/detail" element={<ClientDetailPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
 
+              <Route path="/admin/case-profiles" element={<CaseProfilesPage />} />
+
               <Route element={<AdminRoute />}>
                 <Route path="/admin/users" element={<UsersManagementPage />} />
-                <Route path="/admin/case-profiles" element={<CaseProfilesPage />} />
               </Route>
             </Route>
           </Route>

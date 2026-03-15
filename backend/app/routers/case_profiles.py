@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.deps import get_current_user, require_admin
-from app.models.models import CaseProfile, User, utcnow
+from app.models.models import CaseProfile, Organization, User, UserRole, utcnow
 from app.schemas.schemas import (
     CaseProfileCreate,
     CaseProfileOut,
@@ -23,6 +23,21 @@ from app.schemas.schemas import (
 )
 
 router = APIRouter(prefix="/case-profiles", tags=["case-profiles"])
+
+
+async def _get_org(user: User, db: AsyncSession) -> Organization:
+    result = await db.execute(select(Organization).where(Organization.id == user.org_id))
+    return result.scalar_one()
+
+
+def _require_create_perm(user: User, org: Organization) -> None:
+    if user.role != UserRole.admin and not org.supervisor_can_create_case:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="此操作需要管理員權限")
+
+
+def _require_delete_perm(user: User, org: Organization) -> None:
+    if user.role != UserRole.admin and not org.supervisor_can_delete_case:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="此操作需要管理員權限")
 
 COLUMN_MAP = {
     "姓名": "name",
@@ -113,8 +128,9 @@ async def get_case_profile(
 async def create_case_profile(
     body: CaseProfileCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    _require_create_perm(current_user, await _get_org(current_user, db))
     existing = await db.execute(
         select(CaseProfile).where(
             CaseProfile.org_id == current_user.org_id,
@@ -135,7 +151,7 @@ async def update_case_profile(
     case_id: uuid.UUID,
     body: CaseProfileUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(CaseProfile).where(CaseProfile.id == case_id, CaseProfile.org_id == current_user.org_id)
@@ -155,8 +171,9 @@ async def update_case_profile(
 async def batch_delete_case_profiles(
     body: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    _require_delete_perm(current_user, await _get_org(current_user, db))
     ids = [uuid.UUID(i) for i in body.get("ids", [])]
     if not ids:
         raise HTTPException(status_code=400, detail="未提供 ID 列表")
@@ -178,8 +195,9 @@ async def batch_delete_case_profiles(
 async def delete_case_profile(
     case_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    _require_delete_perm(current_user, await _get_org(current_user, db))
     result = await db.execute(
         select(CaseProfile).where(CaseProfile.id == case_id, CaseProfile.org_id == current_user.org_id)
     )
@@ -196,8 +214,9 @@ async def delete_case_profile(
 async def import_preview(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    _require_create_perm(current_user, await _get_org(current_user, db))
     if not file.filename or not (file.filename.endswith(".xlsx") or file.filename.endswith(".xls")):
         raise HTTPException(status_code=400, detail="請上傳 .xlsx 或 .xls 檔案")
 
@@ -296,8 +315,9 @@ async def import_preview(
 async def import_confirm(
     body: ImportConfirmRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
+    _require_create_perm(current_user, await _get_org(current_user, db))
     created = 0
     updated = 0
     errors = 0

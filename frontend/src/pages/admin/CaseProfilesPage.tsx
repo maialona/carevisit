@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Upload, Pencil, Trash2, Loader2, Search, MapPin, X, ClipboardList } from "lucide-react";
 import { caseProfilesApi } from "../../api/caseProfiles";
 import { useToast } from "../../contexts/ToastContext";
+import { usePermission } from "../../hooks/usePermission";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import CaseProfileFormModal from "../../components/caseProfiles/CaseProfileFormModal";
 import ImportModal from "../../components/caseProfiles/ImportModal";
@@ -11,6 +12,7 @@ import type { CaseProfile, CaseProfileCreate, CaseProfileUpdate, PaginatedRespon
 export default function CaseProfilesPage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { canCreateCase, canDeleteCase } = usePermission();
   const [data, setData] = useState<PaginatedResponse<CaseProfile> | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -129,7 +131,7 @@ export default function CaseProfilesPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-gray-900">個案管理</h2>
         <div className="flex gap-2">
-          {selectMode && someSelected && (
+          {canDeleteCase && selectMode && someSelected && (
             <button
               onClick={() => setShowBatchDeleteConfirm(true)}
               className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200"
@@ -138,25 +140,31 @@ export default function CaseProfilesPage() {
               刪除已選 ({selected.size})
             </button>
           )}
-          <button
-            onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); }}
-            className={`btn-secondary ${selectMode ? "bg-surface-100 text-gray-900" : ""}`}
-            title="批次刪除"
-          >
-            <Trash2 className="h-4 w-4" />
-            批次刪除
-          </button>
-          <button onClick={() => setShowImport(true)} className="btn-secondary">
-            <Upload className="h-4 w-4" />
-            匯入 Excel
-          </button>
-          <button
-            onClick={() => { setEditingCase(null); setShowForm(true); }}
-            className="btn-primary"
-          >
-            <Plus className="h-4 w-4" />
-            新增個案
-          </button>
+          {canDeleteCase && (
+            <button
+              onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); }}
+              className={`btn-secondary ${selectMode ? "bg-surface-100 text-gray-900" : ""}`}
+              title="批次刪除"
+            >
+              <Trash2 className="h-4 w-4" />
+              批次刪除
+            </button>
+          )}
+          {canCreateCase && (
+            <button onClick={() => setShowImport(true)} className="btn-secondary">
+              <Upload className="h-4 w-4" />
+              匯入 Excel
+            </button>
+          )}
+          {canCreateCase && (
+            <button
+              onClick={() => { setEditingCase(null); setShowForm(true); }}
+              className="btn-primary"
+            >
+              <Plus className="h-4 w-4" />
+              新增個案
+            </button>
+          )}
         </div>
       </div>
 
@@ -285,13 +293,15 @@ export default function CaseProfilesPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => { setCaseToDelete(c); setShowDeleteConfirm(true); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-700"
-                          title="刪除"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canDeleteCase && (
+                          <button
+                            onClick={() => { setCaseToDelete(c); setShowDeleteConfirm(true); }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-700"
+                            title="刪除"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

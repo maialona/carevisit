@@ -1,17 +1,24 @@
 import { useAuthStore } from "../store/authStore";
+import { useOrgStore } from "../store/orgStore";
 
 export function usePermission() {
   const { user } = useAuthStore();
+  const settings = useOrgStore((s) => s.settings);
+
+  const isAdmin = user?.role === "admin";
+  const isSupervisor = user?.role === "supervisor";
 
   return {
-    isAdmin: user?.role === "admin",
-    isSupervisor: user?.role === "supervisor",
+    isAdmin,
+    isSupervisor,
 
-    canDeleteCase: user?.role === "admin",
+    canCreateCase: isAdmin || (isSupervisor && (settings?.supervisor_can_create_case ?? false)),
+    canDeleteCase: isAdmin || (isSupervisor && (settings?.supervisor_can_delete_case ?? false)),
+
     canEditRecord: (recordUserId: string) =>
-      user?.role === "admin" || user?.id === recordUserId,
+      isAdmin || user?.id === recordUserId,
     canDeleteRecord: (recordUserId: string) =>
-      user?.role === "admin" || user?.id === recordUserId,
-    canManageUsers: user?.role === "admin",
+      isAdmin || user?.id === recordUserId,
+    canManageUsers: isAdmin,
   };
 }

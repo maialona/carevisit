@@ -76,9 +76,16 @@ class ChangePasswordRequest(BaseModel):
 class OrganizationResponse(BaseModel):
     id: uuid.UUID
     name: str
+    supervisor_can_create_case: bool = False
+    supervisor_can_delete_case: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OrgSettingsUpdate(BaseModel):
+    supervisor_can_create_case: Optional[bool] = None
+    supervisor_can_delete_case: Optional[bool] = None
 
 
 # --- Paginated ---
