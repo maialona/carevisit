@@ -101,15 +101,15 @@ export default function ImportModal({ onClose, onSuccess }: Props) {
 
         {step === "preview" && preview && (
           <div className="space-y-4">
-            <div className="flex gap-3 text-sm">
-              <span className="rounded-full bg-green-100 px-3 py-1 text-green-700 font-medium">
+            <div className="flex gap-2 text-sm">
+              <span className="rounded-full bg-gray-900 px-3 py-1 text-white font-medium">
                 新增 {preview.create_count} 筆
               </span>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700 font-medium">
+              <span className="rounded-full bg-surface-100 border border-gray-200 px-3 py-1 text-gray-600 font-medium">
                 更新 {preview.update_count} 筆
               </span>
               {preview.error_rows.length > 0 && (
-                <span className="rounded-full bg-red-100 px-3 py-1 text-red-700 font-medium">
+                <span className="rounded-full bg-red-50 border border-red-100 px-3 py-1 text-red-600 font-medium">
                   錯誤 {preview.error_rows.length} 筆
                 </span>
               )}
@@ -131,9 +131,9 @@ export default function ImportModal({ onClose, onSuccess }: Props) {
                     <tr key={i} className="hover:bg-surface-50">
                       <td className="px-3 py-2">
                         {row.action === "create" ? (
-                          <span className="badge-green">新增</span>
+                          <span className="inline-flex items-center rounded-full bg-gray-900 px-2.5 py-0.5 text-xs font-medium text-white">新增</span>
                         ) : (
-                          <span className="badge-blue">更新</span>
+                          <span className="badge-gray">更新</span>
                         )}
                       </td>
                       <td className="px-3 py-2 font-medium text-gray-800">{row.name}</td>
