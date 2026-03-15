@@ -232,6 +232,19 @@ export interface ComplianceListParams {
   status_filter?: ComplianceStatus;
 }
 
+// --- AuditLog ---
+export interface AuditLogEntry {
+  id: string;
+  actor_id: string;
+  actor_name: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string | null;
+  resource_label?: string | null;
+  detail?: Record<string, unknown> | null;
+  created_at: string;
+}
+
 // --- AI ---
 export type ToneStyle = "professional" | "warm" | "concise" | "detailed";
 

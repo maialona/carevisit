@@ -13,7 +13,7 @@ import app.core.logging as app_logging
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import ai, auth, case_profiles, chat, clients, export, records, users, stats, schedule
+from app.routers import ai, audit, auth, case_profiles, chat, clients, export, records, users, stats, schedule
 
 
 @asynccontextmanager
@@ -83,6 +83,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             WHERE vr.case_profile_id = cp.id
               AND vr.org_name IS DISTINCT FROM COALESCE(cp.district, '')
         """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                org_id UUID NOT NULL REFERENCES organizations(id),
+                actor_id UUID NOT NULL REFERENCES users(id),
+                actor_name VARCHAR(100) NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                resource_id VARCHAR(100),
+                resource_label VARCHAR(200),
+                detail JSONB,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
     yield
     await engine.dispose()
 
@@ -108,6 +122,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(case_profiles.router, prefix="/api")
 app.include_router(schedule.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")
 
 
 def decode_bytes(obj):

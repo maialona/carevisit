@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password
 from app.deps import get_current_user, require_admin
-from app.models.models import User, UserRole, VisitRecord
+from app.models.models import AuditActionType, User, UserRole, VisitRecord
+from app.routers.audit_utils import log_action
 from app.schemas.schemas import (
     ChangePasswordRequest,
     UserCreate,
@@ -123,6 +124,8 @@ async def create_user(
     )
     db.add(user)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.user_create, "user",
+                     resource_id=str(user.id), resource_label=user.email)
     return user
 
 
@@ -146,6 +149,8 @@ async def update_user(
         setattr(user, field, value)
 
     await db.flush()
+    await log_action(db, current_user, AuditActionType.user_update, "user",
+                     resource_id=str(user.id), resource_label=user.email)
     return user
 
 
@@ -165,6 +170,8 @@ async def deactivate_user(
 
     user.is_active = False
     await db.flush()
+    await log_action(db, current_user, AuditActionType.user_deactivate, "user",
+                     resource_id=str(user.id), resource_label=user.email)
     return {"message": "該帳號已停用"}
 
 
@@ -191,7 +198,8 @@ async def reset_password(
 
     user.hashed_password = hash_password(new_password)
     await db.flush()
-
+    await log_action(db, current_user, AuditActionType.user_reset_pw, "user",
+                     resource_id=str(user.id), resource_label=user.email)
     return {"message": "密碼已重設", "new_password": new_password}
 
 
@@ -219,6 +227,10 @@ async def delete_user_permanent(
             detail=f"該使用者有 {count} 筆訪視紀錄，無法刪除。請改用停用功能。",
         )
 
+    deleted_email = user.email
+    deleted_id = str(user.id)
     await db.delete(user)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.user_delete, "user",
+                     resource_id=deleted_id, resource_label=deleted_email)
     return {"message": "帳號已永久刪除"}

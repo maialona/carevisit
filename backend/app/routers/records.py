@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.deps import get_current_user, check_record_owner_or_admin
 from app.models.models import (
+    AuditActionType,
     CaseProfile,
     RecordStatus,
     User,
@@ -18,6 +19,7 @@ from app.models.models import (
     VisitType,
     OutputFormat,
 )
+from app.routers.audit_utils import log_action
 from app.schemas.schemas import (
     PaginatedResponse,
     VisitRecordCreate,
@@ -143,6 +145,8 @@ async def create_record(
     )
     db.add(record)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.record_create, "visit_record",
+                     resource_id=str(record.id), resource_label=record.case_name)
     return await _enrich_record(record, db)
 
 
@@ -210,6 +214,8 @@ async def update_record(
 
     record.updated_at = datetime.now(timezone.utc)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.record_update, "visit_record",
+                     resource_id=str(record.id), resource_label=record.case_name)
     return await _enrich_record(record, db)
 
 
@@ -236,6 +242,10 @@ async def delete_record(
         if record.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="權限不足")
 
+    record_label = record.case_name
+    record_id_str = str(record.id)
     await db.delete(record)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.record_delete, "visit_record",
+                     resource_id=record_id_str, resource_label=record_label)
     return {"message": "紀錄已刪除"}

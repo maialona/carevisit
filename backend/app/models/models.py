@@ -171,3 +171,32 @@ class ChatSession(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     user: Mapped["User"] = relationship(back_populates="chat_sessions")
+
+
+class AuditActionType(str, enum.Enum):
+    record_create = "record_create"
+    record_update = "record_update"
+    record_delete = "record_delete"
+    case_create = "case_create"
+    case_update = "case_update"
+    case_delete = "case_delete"
+    case_import = "case_import"
+    user_create = "user_create"
+    user_update = "user_update"
+    user_deactivate = "user_deactivate"
+    user_delete = "user_delete"
+    user_reset_pw = "user_reset_pw"
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    actor_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    action: Mapped[AuditActionType] = mapped_column(Enum(AuditActionType), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resource_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

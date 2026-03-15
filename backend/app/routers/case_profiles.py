@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.deps import get_current_user, require_admin
-from app.models.models import CaseProfile, User, UserRole, utcnow
+from app.models.models import AuditActionType, CaseProfile, User, UserRole, utcnow
+from app.routers.audit_utils import log_action
 from app.schemas.schemas import (
     CaseProfileCreate,
     CaseProfileOut,
@@ -143,6 +144,8 @@ async def create_case_profile(
     case = CaseProfile(org_id=current_user.org_id, **body.model_dump())
     db.add(case)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.case_create, "case_profile",
+                     resource_id=str(case.id), resource_label=case.name)
     return case
 
 
@@ -165,6 +168,8 @@ async def update_case_profile(
         setattr(case, field, value)
 
     await db.flush()
+    await log_action(db, current_user, AuditActionType.case_update, "case_profile",
+                     resource_id=str(case.id), resource_label=case.name)
     return case
 
 
@@ -189,6 +194,8 @@ async def batch_delete_case_profiles(
     for case in cases:
         await db.delete(case)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.case_delete, "case_profile",
+                     detail={"count": len(cases)})
     return {"deleted": len(cases)}
 
 
@@ -206,8 +213,12 @@ async def delete_case_profile(
     if not case:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="個案不存在")
 
+    case_label = case.name
+    case_id_str = str(case.id)
     await db.delete(case)
     await db.flush()
+    await log_action(db, current_user, AuditActionType.case_delete, "case_profile",
+                     resource_id=case_id_str, resource_label=case_label)
     return {"message": "已刪除"}
 
 
@@ -363,4 +374,6 @@ async def import_confirm(
             errors += 1
 
     await db.flush()
+    await log_action(db, current_user, AuditActionType.case_import, "case_profile",
+                     detail={"created": created, "updated": updated, "errors": errors})
     return ImportConfirmResponse(created=created, updated=updated, errors=errors)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useChatStore } from "../store/chatStore";
 import UserDropdown from "./ui/UserDropdown";
@@ -13,6 +13,7 @@ import {
   HeartHandshake,
   FolderOpen,
   CalendarCheck,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -113,6 +114,7 @@ export default function Layout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = user?.role === "admin";
+  const navigate = useNavigate();
   const chatOpen = useChatStore((s) => s.open);
   const setChatOpen = useChatStore((s) => s.setOpen);
   const toggleChat = useChatStore((s) => s.toggle);
@@ -155,6 +157,13 @@ export default function Layout() {
                 <p className="truncate text-sm font-bold text-gray-900">{user.name}</p>
                 <p className="text-xs font-medium text-gray-500">{user.role === "admin" ? "管理員" : "督導員"}</p>
               </div>
+              <button
+                onClick={() => navigate("/admin/audit")}
+                title="操作記錄"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-surface-100 hover:text-gray-700 transition-colors"
+              >
+                <History className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}

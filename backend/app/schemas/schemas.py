@@ -357,3 +357,17 @@ class ClientCardResponse(BaseModel):
     org_name: str
     record_count: int
     last_visit_date: datetime
+
+
+# --- AuditLog ---
+class AuditLogEntry(BaseModel):
+    id: uuid.UUID
+    actor_id: uuid.UUID
+    actor_name: str
+    action: str
+    resource_type: str
+    resource_id: Optional[str] = None
+    resource_label: Optional[str] = None
+    detail: Optional[dict] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}

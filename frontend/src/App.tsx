@@ -14,6 +14,7 @@ import ClientDetailPage from "./pages/ClientDetailPage";
 
 import UsersManagementPage from "./pages/admin/UsersManagementPage";
 import CaseProfilesPage from "./pages/admin/CaseProfilesPage";
+import AuditLogPage from "./pages/admin/AuditLogPage";
 import AdminRoute from "./components/AdminRoute";
 import SchedulePage from "./pages/SchedulePage";
 
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="/schedule" element={<SchedulePage />} />
 
               <Route path="/admin/case-profiles" element={<CaseProfilesPage />} />
+              <Route path="/admin/audit" element={<AuditLogPage />} />
 
               <Route element={<AdminRoute />}>
                 <Route path="/admin/users" element={<UsersManagementPage />} />
