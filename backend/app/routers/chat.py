@@ -364,6 +364,17 @@ AGENT_FUNCTIONS = [
             },
         },
     },
+    {
+        "name": "get_same_district_cases",
+        "description": "查詢與指定個案同地區的其他個案，適合規劃「順路家訪」。先查指定個案的地區，再列出同區其他個案的訪視狀態與排程。",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name"],
+            "properties": {
+                "case_name": {"type": "string", "description": "作為地區基準的個案姓名"},
+            },
+        },
+    },
 ]
 
 
@@ -1666,6 +1677,80 @@ async def _exec_get_schedule_suggestions(args: dict, current_user: User, db: Asy
         return "\n".join(lines)
 
 
+async def _exec_get_same_district_cases(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "").strip()
+    if not case_name:
+        return "請提供個案姓名。"
+
+    # Look up the target case to get its district
+    anchor_q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
+    anchor_q = _case_filter(anchor_q, current_user)
+    anchors = (await db.execute(anchor_q)).scalars().all()
+
+    if not anchors:
+        return f"找不到名字包含「{case_name}」的個案。"
+    if len(anchors) > 1:
+        names = "、".join(c.name for c in anchors[:5])
+        return f"找到多筆相符個案：{names}，請提供更精確的姓名。"
+
+    anchor = anchors[0]
+    district = anchor.district
+    if not district:
+        return f"個案「{anchor.name}」尚未設定地區，無法查詢同地區個案。"
+
+    # Fetch all other cases in the same district
+    others_q = select(CaseProfile).where(
+        CaseProfile.district == district,
+        CaseProfile.id != anchor.id,
+    )
+    others_q = _case_filter(others_q, current_user)
+    others = (await db.execute(others_q)).scalars().all()
+
+    if not others:
+        return f"「{anchor.name}」所在的{district}目前沒有其他個案。"
+
+    today = date.today()
+    case_ids = [c.id for c in others]
+    last_visits = await _get_last_visits(db, case_ids)
+
+    schedule_r = await db.execute(
+        select(VisitSchedule).where(VisitSchedule.case_profile_id.in_(case_ids))
+    )
+    schedule_map = {s.case_profile_id: s for s in schedule_r.scalars().all()}
+
+    status_label = {
+        "ok": "✅ 正常",
+        "pending": "⏳ 待訪",
+        "due_soon": "🔜 即將到期",
+        "overdue": "❌ 逾期",
+        "no_record": "📭 無紀錄",
+    }
+
+    rows = []
+    for c in others:
+        lv = last_visits.get(c.id, {})
+        _, home_detail, overall = compute_compliance(lv.get("phone"), lv.get("home"), today)
+        sched = schedule_map.get(c.id)
+        sched_info = f"排程第 {sched.preferred_day_of_month} 日" if sched and sched.preferred_day_of_month else "未設排程"
+        st = status_label.get(overall.value, overall.value)
+        due_info = ""
+        if home_detail and home_detail.due_by and overall.value in ("due_soon", "overdue"):
+            days_left = (home_detail.due_by - today).days
+            due_info = f"，期限剩 {days_left} 天"
+        rows.append((overall.value, c.name, st, sched_info, due_info))
+
+    # Sort: overdue first, then due_soon, then others
+    priority = {"overdue": 0, "due_soon": 1, "no_record": 2, "pending": 3, "ok": 4}
+    rows.sort(key=lambda r: priority.get(r[0], 9))
+
+    lines = [f"**{anchor.name}** 位於 **{district}**，同地區共有 {len(others)} 位個案：\n"]
+    for _, name, st, sched_info, due_info in rows:
+        lines.append(f"- **{name}** {st}　{sched_info}{due_info}")
+
+    lines.append(f"\n如需查看某位個案的詳細資料或地址，可進一步詢問。")
+    return "\n".join(lines)
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -1687,6 +1772,7 @@ FUNCTION_MAP = {
     "update_visit_record": _exec_update_visit_record,
     "update_case_profile": _exec_update_case_profile,
     "get_schedule_suggestions": _exec_get_schedule_suggestions,
+    "get_same_district_cases": _exec_get_same_district_cases,
 }
 
 
