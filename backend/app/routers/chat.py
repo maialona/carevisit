@@ -210,6 +210,29 @@ AGENT_FUNCTIONS = [
         },
     },
     {
+        "name": "get_case_distribution",
+        "description": "統計個案的分佈情況，可依性別、地區、服務狀態、督導員分組計算數量與比例。適用於「男女比例」、「各地區個案數」、「各服務狀態人數」等問題",
+        "parameters": {
+            "type": "object",
+            "required": ["group_by"],
+            "properties": {
+                "group_by": {
+                    "type": "string",
+                    "enum": ["gender", "district", "service_status", "supervisor"],
+                    "description": "分組欄位：gender=性別、district=地區、service_status=服務狀態、supervisor=督導員",
+                },
+                "district_filter": {
+                    "type": "string",
+                    "description": "先依地區篩選再統計（可選）",
+                },
+                "supervisor_filter": {
+                    "type": "string",
+                    "description": "先依督導員篩選再統計（可選）",
+                },
+            },
+        },
+    },
+    {
         "name": "get_org_summary",
         "description": "取得全機構快照：總個案數、逾期數、本月訪視進度、草稿紀錄數、各督導員工作量",
         "parameters": {
@@ -886,6 +909,57 @@ async def _exec_list_cases(args: dict, current_user: User, db: AsyncSession) -> 
     return header + "\n" + "\n".join(f"- {l}" for l in lines)
 
 
+async def _exec_get_case_distribution(args: dict, current_user: User, db: AsyncSession) -> str:
+    group_by = args.get("group_by", "gender")
+    district_filter = args.get("district_filter", "")
+    supervisor_filter = args.get("supervisor_filter", "")
+
+    field_map = {
+        "gender": CaseProfile.gender,
+        "district": CaseProfile.district,
+        "service_status": CaseProfile.service_status,
+        "supervisor": CaseProfile.supervisor,
+    }
+    field_label = {
+        "gender": "性別", "district": "地區",
+        "service_status": "服務狀態", "supervisor": "督導員",
+    }
+
+    col = field_map.get(group_by)
+    if col is None:
+        return "不支援的分組欄位。"
+
+    q = select(col, func.count(CaseProfile.id)).where(CaseProfile.org_id == current_user.org_id)
+
+    if district_filter:
+        q = q.where(CaseProfile.district == district_filter)
+    if supervisor_filter:
+        q = q.where(CaseProfile.supervisor.ilike(f"%{supervisor_filter}%"))
+
+    q = q.group_by(col).order_by(func.count(CaseProfile.id).desc())
+    rows = (await db.execute(q)).all()
+
+    if not rows:
+        return "目前沒有可統計的個案資料。"
+
+    total = sum(count for _, count in rows)
+    label = field_label.get(group_by, group_by)
+
+    lines = []
+    for value, count in rows:
+        display = value or "（未填）"
+        pct = round(count / total * 100, 1) if total else 0
+        lines.append(f"- {display}：{count} 人（{pct}%）")
+
+    filter_note = ""
+    if district_filter:
+        filter_note += f"（地區：{district_filter}）"
+    if supervisor_filter:
+        filter_note += f"（督導員：{supervisor_filter}）"
+
+    return f"個案{label}分佈{filter_note}（共 {total} 人）：\n" + "\n".join(lines)
+
+
 async def _exec_get_org_summary(args: dict, current_user: User, db: AsyncSession) -> str:
     org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
     today = date.today()
@@ -1301,6 +1375,7 @@ FUNCTION_MAP = {
     "list_overdue_cases": _exec_list_overdue_cases,
     "search_cases": _exec_search_cases,
     "list_cases": _exec_list_cases,
+    "get_case_distribution": _exec_get_case_distribution,
     "get_org_summary": _exec_get_org_summary,
     "get_record_detail": _exec_get_record_detail,
     "create_draft_record": _exec_create_draft_record,
