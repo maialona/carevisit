@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../contexts/ToastContext";
-import { API_URL } from "../../api/axios";
+import api, { API_URL } from "../../api/axios";
 import ChatMessage, {
   type FunctionCallDisplay,
 } from "./ChatMessage";
@@ -19,12 +19,37 @@ interface Message {
   functionCalls?: FunctionCallDisplay[];
 }
 
-const QUICK_PROMPTS = [
-  { label: "本月訪視統計", message: "請給我本月的家訪和電訪統計數字" },
-  { label: "待完成紀錄", message: "目前有哪些紀錄還是草稿狀態？" },
-  { label: "今日行程", message: "今天有哪些個案需要訪視？" },
-  { label: "查詢個案", message: "請幫我查詢個案" },
-];
+interface AiContext {
+  draft_count: number;
+  overdue_count: number;
+  due_soon_count: number;
+}
+
+function buildQuickPrompts(ctx: AiContext | null) {
+  const prompts = [
+    { label: "機構總覽", message: "幫我看全機構快照" },
+    { label: "本月訪視統計", message: "請給我本月的家訪和電訪統計數字" },
+  ];
+  if (ctx?.draft_count && ctx.draft_count > 0) {
+    prompts.push({
+      label: `待完成紀錄（${ctx.draft_count}）`,
+      message: "目前有哪些紀錄還是草稿狀態？",
+    });
+  }
+  if (ctx?.overdue_count && ctx.overdue_count > 0) {
+    prompts.push({
+      label: `逾期個案（${ctx.overdue_count}）`,
+      message: "列出所有逾期的個案",
+    });
+  } else if (ctx?.due_soon_count && ctx.due_soon_count > 0) {
+    prompts.push({
+      label: `即將到期（${ctx.due_soon_count}）`,
+      message: "列出即將到期的個案",
+    });
+  }
+  prompts.push({ label: "今日行程", message: "今天有哪些個案需要訪視？" });
+  return prompts;
+}
 
 const WELCOME_MESSAGE: Message = {
   role: "assistant",
@@ -48,9 +73,8 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
     localStorage.getItem("carevisit_chat_session"),
   );
   const [streamingContent, setStreamingContent] = useState("");
-  const [streamingFnCalls, setStreamingFnCalls] = useState<
-    FunctionCallDisplay[]
-  >([]);
+  const [streamingFnCalls, setStreamingFnCalls] = useState<FunctionCallDisplay[]>([]);
+  const [aiContext, setAiContext] = useState<AiContext | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -63,10 +87,13 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
 
-  // Focus input when panel opens
+  // Focus input when panel opens + fetch context for dynamic prompts
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 350);
+      api.get<AiContext>("/ai/context")
+        .then((r) => setAiContext(r.data))
+        .catch(() => {});
     }
   }, [open]);
 
@@ -250,9 +277,9 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick prompts */}
+      {/* Quick prompts — dynamic based on context */}
       <div className="flex shrink-0 flex-wrap gap-1.5 px-4 pb-2">
-        {QUICK_PROMPTS.map((p) => (
+        {buildQuickPrompts(aiContext).map((p) => (
           <button
             key={p.label}
             onClick={() => sendMessage(p.message)}

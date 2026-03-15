@@ -6,10 +6,10 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncOpenAI
 
@@ -34,7 +34,9 @@ from app.routers.schedule import _case_filter, _get_last_visits
 
 router = APIRouter(prefix="/ai", tags=["chat"])
 
-MAX_HISTORY = 20
+MAX_HISTORY = 30       # messages kept per session
+COMPRESS_THRESHOLD = 30  # compress when history hits this
+KEEP_RECENT = 10         # always keep these most-recent messages uncompressed
 
 
 # ---------- Schemas ----------
@@ -61,12 +63,26 @@ AGENT_FUNCTIONS = [
     },
     {
         "name": "get_statistics",
-        "description": "取得統計數據，如本月訪視次數、各督導員工作量",
+        "description": "取得統計數據，如本月訪視次數、各督導員/地區工作量。可用 district_filter 或 supervisor_filter 縮小範圍",
         "parameters": {
             "type": "object",
             "properties": {
-                "period": {"type": "string", "enum": ["today", "this_week", "this_month", "last_month"]},
-                "group_by": {"type": "string", "enum": ["visit_type", "user", "status"]},
+                "period": {
+                    "type": "string",
+                    "enum": ["today", "this_week", "this_month", "last_month"],
+                },
+                "group_by": {
+                    "type": "string",
+                    "enum": ["visit_type", "user", "status", "district"],
+                },
+                "district_filter": {
+                    "type": "string",
+                    "description": "只統計特定地區（鄉鎮區）的訪視，例如：中西區",
+                },
+                "supervisor_filter": {
+                    "type": "string",
+                    "description": "只統計特定督導員的訪視（姓名模糊匹配）",
+                },
             },
         },
     },
@@ -139,20 +155,85 @@ AGENT_FUNCTIONS = [
                 "status_filter": {
                     "type": "string",
                     "enum": ["overdue", "due_soon", "all"],
-                    "description": "過濾狀態：overdue=逾期、due_soon=即將到期、all=兩者都列出",
+                    "description": "overdue=逾期、due_soon=即將到期、all=兩者都列出",
                 },
             },
         },
     },
     {
         "name": "search_cases",
-        "description": "模糊搜尋個案，可用姓名或身分證號查詢",
+        "description": "搜尋個案，可用姓名、身分證號、地區、督導員或服務狀態組合查詢",
         "parameters": {
             "type": "object",
-            "required": ["query"],
             "properties": {
-                "query": {"type": "string", "description": "搜尋關鍵字（姓名或身分證號）"},
+                "query": {
+                    "type": "string",
+                    "description": "搜尋關鍵字（姓名或身分證號），可留空並搭配其他篩選",
+                },
+                "district": {
+                    "type": "string",
+                    "description": "依地區（鄉鎮區）精確篩選，例如：中西區",
+                },
+                "supervisor": {
+                    "type": "string",
+                    "description": "依督導員姓名篩選（模糊匹配）",
+                },
+                "service_status": {
+                    "type": "string",
+                    "description": "依服務狀態篩選，例如：服務中、暫停服務",
+                },
                 "limit": {"type": "integer", "default": 10},
+            },
+        },
+    },
+    {
+        "name": "list_cases",
+        "description": "列出個案清單並統計數量，支援依地區、督導員、服務狀態篩選，支援分頁",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "district": {
+                    "type": "string",
+                    "description": "依地區（鄉鎮區）篩選，例如：中西區",
+                },
+                "supervisor": {
+                    "type": "string",
+                    "description": "依督導員姓名篩選（模糊匹配）",
+                },
+                "service_status": {
+                    "type": "string",
+                    "description": "依服務狀態篩選",
+                },
+                "page": {"type": "integer", "default": 1},
+                "page_size": {"type": "integer", "default": 10},
+            },
+        },
+    },
+    {
+        "name": "get_org_summary",
+        "description": "取得全機構快照：總個案數、逾期數、本月訪視進度、草稿紀錄數、各督導員工作量",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_record_detail",
+        "description": "取得特定個案某次訪視紀錄的完整內容，用於深入分析或撰寫建議",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name"],
+            "properties": {
+                "case_name": {"type": "string", "description": "個案姓名"},
+                "visit_date": {
+                    "type": "string",
+                    "description": "訪視日期 YYYY-MM-DD，不填則取最新一筆",
+                },
+                "visit_type": {
+                    "type": "string",
+                    "enum": ["home", "phone"],
+                    "description": "訪視類型，不填則不限",
+                },
             },
         },
     },
@@ -164,13 +245,10 @@ AGENT_FUNCTIONS = [
             "required": ["case_name", "visit_type", "visit_date", "content"],
             "properties": {
                 "case_name": {"type": "string", "description": "個案姓名"},
-                "visit_type": {"type": "string", "enum": ["home", "phone"], "description": "訪視類型"},
+                "visit_type": {"type": "string", "enum": ["home", "phone"]},
                 "visit_date": {"type": "string", "description": "訪視日期，格式 YYYY-MM-DD"},
                 "content": {"type": "string", "description": "訪視紀錄內容（AI 生成的草稿文字）"},
-                "confirm": {
-                    "type": "boolean",
-                    "description": "設為 true 才實際寫入，否則只回傳預覽",
-                },
+                "confirm": {"type": "boolean", "description": "設為 true 才實際寫入，否則只回傳預覽"},
             },
         },
     },
@@ -181,31 +259,25 @@ AGENT_FUNCTIONS = [
             "type": "object",
             "required": ["case_name", "preferred_day"],
             "properties": {
-                "case_name": {"type": "string", "description": "個案姓名"},
+                "case_name": {"type": "string"},
                 "preferred_day": {"type": "integer", "description": "每月訪視日（1-28）"},
-                "year": {"type": "integer", "description": "指定年份（用於月份覆寫），不填則設定預設日"},
-                "month": {"type": "integer", "description": "指定月份（1-12），不填則設定預設日"},
-                "confirm": {
-                    "type": "boolean",
-                    "description": "設為 true 才實際寫入，否則只回傳預覽",
-                },
+                "year": {"type": "integer"},
+                "month": {"type": "integer"},
+                "confirm": {"type": "boolean"},
             },
         },
     },
     {
         "name": "update_record_status",
-        "description": "將草稿訪視紀錄標記為已完成。未帶 confirm=true 時只回傳預覽，不實際寫入",
+        "description": "將草稿訪視紀錄標記為已完成。未帶 confirm=true 時只回傳預覽",
         "parameters": {
             "type": "object",
             "required": ["case_name"],
             "properties": {
-                "case_name": {"type": "string", "description": "個案姓名"},
-                "visit_date": {"type": "string", "description": "訪視日期（YYYY-MM-DD），用於縮小範圍"},
-                "visit_type": {"type": "string", "enum": ["home", "phone"], "description": "訪視類型，用於縮小範圍"},
-                "confirm": {
-                    "type": "boolean",
-                    "description": "設為 true 才實際寫入，否則只回傳預覽",
-                },
+                "case_name": {"type": "string"},
+                "visit_date": {"type": "string"},
+                "visit_type": {"type": "string", "enum": ["home", "phone"]},
+                "confirm": {"type": "boolean"},
             },
         },
     },
@@ -215,30 +287,27 @@ AGENT_FUNCTIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "days_ahead": {
-                    "type": "integer",
-                    "description": "查詢未來幾天內的排程，預設 7 天",
-                },
-                "year": {"type": "integer", "description": "查詢年份，預設當月"},
-                "month": {"type": "integer", "description": "查詢月份（1-12），預設當月"},
+                "days_ahead": {"type": "integer", "description": "查詢未來幾天，預設 7"},
+                "year": {"type": "integer"},
+                "month": {"type": "integer"},
             },
         },
     },
 ]
 
 
+# ---------- Helpers ----------
+
 def _period_range(period: str):
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
     if period == "today":
         return today_start, now
     elif period == "this_week":
         start = today_start - timedelta(days=today_start.weekday())
         return start, now
     elif period == "this_month":
-        start = today_start.replace(day=1)
-        return start, now
+        return today_start.replace(day=1), now
     elif period == "last_month":
         first_this = today_start.replace(day=1)
         last_end = first_this - timedelta(seconds=1)
@@ -247,8 +316,43 @@ def _period_range(period: str):
     return today_start.replace(day=1), now
 
 
-# ---------- Function executors ----------
+async def _compress_history(history: List[dict], client: AsyncOpenAI) -> List[dict]:
+    """AI-summarize older messages, keep KEEP_RECENT most recent ones."""
+    old = history[:-KEEP_RECENT]
+    recent = history[-KEEP_RECENT:]
 
+    old_text = "\n".join(
+        f"[{m['role']}]: {(m.get('content') or '')[:300]}"
+        for m in old
+        if m.get("content")
+    )
+    if not old_text.strip():
+        return recent
+
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "請將以下對話記錄摘要成一段簡潔的繁體中文，"
+                        "保留所有重要的查詢結果、數字、個案資訊和決定事項。摘要控制在 200 字以內。"
+                    ),
+                },
+                {"role": "user", "content": old_text},
+            ],
+            max_tokens=350,
+            timeout=15.0,
+        )
+        summary = resp.choices[0].message.content or ""
+    except Exception:
+        return history[-KEEP_RECENT:]
+
+    return [{"role": "system", "content": f"[先前對話摘要]\n{summary}"}] + recent
+
+
+# ---------- Function executors ----------
 
 async def _exec_get_case_records(args: dict, current_user: User, db: AsyncSession) -> str:
     case_name = args.get("case_name", "")
@@ -258,7 +362,6 @@ async def _exec_get_case_records(args: dict, current_user: User, db: AsyncSessio
     if not case_name:
         return "請提供個案姓名。"
 
-    # Bug 2 fix: non-admin can only see their own records
     if current_user.role == UserRole.admin:
         org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
         q = select(VisitRecord).where(
@@ -294,6 +397,8 @@ async def _exec_get_case_records(args: dict, current_user: User, db: AsyncSessio
 async def _exec_get_statistics(args: dict, current_user: User, db: AsyncSession) -> str:
     period = args.get("period", "this_month")
     group_by = args.get("group_by", "visit_type")
+    district_filter = args.get("district_filter", "")
+    supervisor_filter = args.get("supervisor_filter", "")
     start, end = _period_range(period)
 
     org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
@@ -303,22 +408,55 @@ async def _exec_get_statistics(args: dict, current_user: User, db: AsyncSession)
         VisitRecord.visit_date <= end,
     )
 
-    period_label = {"today": "今天", "this_week": "本週", "this_month": "本月", "last_month": "上月"}.get(period, period)
+    period_label = {
+        "today": "今天", "this_week": "本週",
+        "this_month": "本月", "last_month": "上月",
+    }.get(period, period)
+
+    # Apply optional filters
+    if district_filter:
+        base = base.where(VisitRecord.org_name.ilike(f"%{district_filter}%"))
+    if supervisor_filter:
+        # Filter by user name
+        sup_user_ids = select(User.id).where(
+            User.org_id == current_user.org_id,
+            User.name.ilike(f"%{supervisor_filter}%"),
+        )
+        base = base.where(VisitRecord.user_id.in_(sup_user_ids))
+
+    filter_note = ""
+    if district_filter:
+        filter_note += f"（地區：{district_filter}）"
+    if supervisor_filter:
+        filter_note += f"（督導員：{supervisor_filter}）"
 
     if group_by == "visit_type":
-        home_q = select(func.count()).select_from(base.where(VisitRecord.visit_type == VisitType.home).subquery())
-        phone_q = select(func.count()).select_from(base.where(VisitRecord.visit_type == VisitType.phone).subquery())
+        home_q = select(func.count()).select_from(
+            base.where(VisitRecord.visit_type == VisitType.home).subquery()
+        )
+        phone_q = select(func.count()).select_from(
+            base.where(VisitRecord.visit_type == VisitType.phone).subquery()
+        )
         home_count = (await db.execute(home_q)).scalar() or 0
         phone_count = (await db.execute(phone_q)).scalar() or 0
         total = home_count + phone_count
-        return f"{period_label}訪視統計：\n- 家訪：{home_count} 次\n- 電訪：{phone_count} 次\n- 合計：{total} 次"
+        return (
+            f"{period_label}{filter_note}訪視統計：\n"
+            f"- 家訪：{home_count} 次\n"
+            f"- 電訪：{phone_count} 次\n"
+            f"- 合計：{total} 次"
+        )
 
     elif group_by == "status":
-        draft_q = select(func.count()).select_from(base.where(VisitRecord.status == RecordStatus.draft).subquery())
-        done_q = select(func.count()).select_from(base.where(VisitRecord.status == RecordStatus.completed).subquery())
+        draft_q = select(func.count()).select_from(
+            base.where(VisitRecord.status == RecordStatus.draft).subquery()
+        )
+        done_q = select(func.count()).select_from(
+            base.where(VisitRecord.status == RecordStatus.completed).subquery()
+        )
         draft = (await db.execute(draft_q)).scalar() or 0
         done = (await db.execute(done_q)).scalar() or 0
-        return f"{period_label}紀錄狀態：\n- 已完成：{done} 筆\n- 草稿：{draft} 筆"
+        return f"{period_label}{filter_note}紀錄狀態：\n- 已完成：{done} 筆\n- 草稿：{draft} 筆"
 
     elif group_by == "user":
         q = (
@@ -329,14 +467,38 @@ async def _exec_get_statistics(args: dict, current_user: User, db: AsyncSession)
                 VisitRecord.visit_date >= start,
                 VisitRecord.visit_date <= end,
             )
-            .group_by(User.name)
+        )
+        if district_filter:
+            q = q.where(VisitRecord.org_name.ilike(f"%{district_filter}%"))
+        if supervisor_filter:
+            q = q.where(User.name.ilike(f"%{supervisor_filter}%"))
+        q = q.group_by(User.name)
+        result = await db.execute(q)
+        rows = result.all()
+        if not rows:
+            return f"{period_label}{filter_note}沒有訪視紀錄。"
+        lines = [f"- {name}：{count} 次" for name, count in rows]
+        return f"{period_label}{filter_note}各督導員工作量：\n" + "\n".join(lines)
+
+    elif group_by == "district":
+        q = (
+            select(VisitRecord.org_name, func.count(VisitRecord.id))
+            .where(
+                VisitRecord.user_id.in_(org_user_ids),
+                VisitRecord.visit_date >= start,
+                VisitRecord.visit_date <= end,
+                VisitRecord.org_name.isnot(None),
+                VisitRecord.org_name != "",
+            )
+            .group_by(VisitRecord.org_name)
+            .order_by(func.count(VisitRecord.id).desc())
         )
         result = await db.execute(q)
         rows = result.all()
         if not rows:
-            return f"{period_label}沒有訪視紀錄。"
-        lines = [f"- {name}：{count} 次" for name, count in rows]
-        return f"{period_label}各督導員工作量：\n" + "\n".join(lines)
+            return f"{period_label}沒有可依地區統計的訪視紀錄。"
+        lines = [f"- {district}：{count} 次" for district, count in rows]
+        return f"{period_label}各地區訪視統計：\n" + "\n".join(lines)
 
     return "不支援的分組方式。"
 
@@ -366,19 +528,16 @@ async def _exec_get_pending_records(args: dict, current_user: User, db: AsyncSes
         d = r.visit_date.strftime("%Y/%m/%d")
         vt = "家訪" if r.visit_type == VisitType.home else "電訪"
         lines.append(f"- {case_name} [{vt}] {d}")
-
     return f"共 {len(records)} 筆待完成紀錄：\n" + "\n".join(lines)
 
 
 async def _exec_draft_visit_summary(args: dict, current_user: User, db: AsyncSession) -> str:
     case_name = args.get("case_name", "")
-    # Bug 1 fix: read summary_type and use it
     summary_type = args.get("summary_type", "monthly_summary")
 
     if not case_name:
         return "請提供個案姓名。"
 
-    # Bug 2 fix: non-admin can only see their own records
     if current_user.role == UserRole.admin:
         org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
         q = (
@@ -446,6 +605,8 @@ async def _exec_get_case_profile(args: dict, current_user: User, db: AsyncSessio
             parts.append(f"電話：{c.phone}")
         if c.address:
             parts.append(f"地址：{c.address}")
+        if c.district:
+            parts.append(f"地區：{c.district}")
         if c.supervisor:
             parts.append(f"督導員：{c.supervisor}")
         lines.append("、".join(parts))
@@ -474,7 +635,6 @@ async def _exec_get_visit_schedule(args: dict, current_user: User, db: AsyncSess
         case_lines = [f"**{c.name}**"]
 
         if year and month:
-            # Look for monthly override
             monthly_r = await db.execute(
                 select(MonthlyVisitSchedule).where(
                     MonthlyVisitSchedule.case_profile_id == c.id,
@@ -486,7 +646,6 @@ async def _exec_get_visit_schedule(args: dict, current_user: User, db: AsyncSess
             if monthly:
                 case_lines.append(f"{year}/{month:02d} 訂定訪視日：{monthly.preferred_day} 日")
             else:
-                # Fall back to default schedule
                 sched_r = await db.execute(
                     select(VisitSchedule).where(VisitSchedule.case_profile_id == c.id)
                 )
@@ -498,7 +657,6 @@ async def _exec_get_visit_schedule(args: dict, current_user: User, db: AsyncSess
                 else:
                     case_lines.append(f"{year}/{month:02d} 尚未安排訪視日。")
         else:
-            # Default schedule
             sched_r = await db.execute(
                 select(VisitSchedule).where(VisitSchedule.case_profile_id == c.id)
             )
@@ -531,21 +689,18 @@ async def _exec_get_case_compliance(args: dict, current_user: User, db: AsyncSes
     last_visits = await _get_last_visits(db, case_ids)
     today = date.today()
 
+    status_labels = {
+        "ok": "正常", "pending": "待訪", "due_soon": "即將到期",
+        "overdue": "逾期", "no_record": "無紀錄",
+    }
+
     lines = []
     for c in cases:
         lv = last_visits.get(c.id, {})
         phone_detail, home_detail, overall = compute_compliance(
             lv.get("phone"), lv.get("home"), today
         )
-        status_labels = {
-            "ok": "正常",
-            "pending": "待訪",
-            "due_soon": "即將到期",
-            "overdue": "逾期",
-            "no_record": "無紀錄",
-        }
         overall_label = status_labels.get(overall.value, overall.value)
-
         parts = [f"**{c.name}** 合規狀態：{overall_label}"]
 
         if home_detail.last_date:
@@ -563,7 +718,6 @@ async def _exec_get_case_compliance(args: dict, current_user: User, db: AsyncSes
 
         phone_label = status_labels.get(phone_detail.status.value, phone_detail.status.value)
         parts.append(f"電訪本月狀態：{phone_label}")
-
         lines.append("、".join(parts))
 
     return "\n".join(f"- {l}" for l in lines)
@@ -617,24 +771,107 @@ async def _exec_list_overdue_cases(args: dict, current_user: User, db: AsyncSess
 
 async def _exec_search_cases(args: dict, current_user: User, db: AsyncSession) -> str:
     query = args.get("query", "")
+    district = args.get("district", "")
+    supervisor = args.get("supervisor", "")
+    service_status = args.get("service_status", "")
     limit = min(args.get("limit", 10), 30)
 
-    if not query:
-        return "請提供搜尋關鍵字。"
+    if not query and not district and not supervisor and not service_status:
+        return "請至少提供一個搜尋條件（關鍵字、地區、督導員或服務狀態）。"
 
-    q = select(CaseProfile).where(
-        or_(
-            CaseProfile.name.ilike(f"%{query}%"),
-            CaseProfile.id_number.ilike(f"%{query}%"),
-        )
-    )
+    q = select(CaseProfile)
     q = _case_filter(q, current_user)
+
+    if query:
+        q = q.where(
+            or_(
+                CaseProfile.name.ilike(f"%{query}%"),
+                CaseProfile.id_number.ilike(f"%{query}%"),
+            )
+        )
+    if district:
+        q = q.where(CaseProfile.district == district)
+    if supervisor:
+        q = q.where(CaseProfile.supervisor.ilike(f"%{supervisor}%"))
+    if service_status:
+        q = q.where(CaseProfile.service_status.ilike(f"%{service_status}%"))
+
     q = q.limit(limit)
     result = await db.execute(q)
     cases = result.scalars().all()
 
     if not cases:
-        return f"找不到符合「{query}」的個案。"
+        terms = []
+        if query:
+            terms.append(f"關鍵字「{query}」")
+        if district:
+            terms.append(f"地區「{district}」")
+        if supervisor:
+            terms.append(f"督導員「{supervisor}」")
+        if service_status:
+            terms.append(f"服務狀態「{service_status}」")
+        return f"找不到符合 {' + '.join(terms)} 的個案。"
+
+    lines = []
+    for c in cases:
+        parts = [f"**{c.name}**（{c.id_number}）"]
+        if c.district:
+            parts.append(c.district)
+        if c.service_status:
+            parts.append(c.service_status)
+        if c.supervisor:
+            parts.append(f"督導：{c.supervisor}")
+        lines.append("、".join(parts))
+
+    return f"找到 {len(cases)} 筆個案：\n" + "\n".join(f"- {l}" for l in lines)
+
+
+async def _exec_list_cases(args: dict, current_user: User, db: AsyncSession) -> str:
+    district = args.get("district", "")
+    supervisor = args.get("supervisor", "")
+    service_status = args.get("service_status", "")
+    page = max(1, args.get("page", 1))
+    page_size = min(args.get("page_size", 10), 20)
+
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+
+    if district:
+        q = q.where(CaseProfile.district == district)
+    if supervisor:
+        q = q.where(CaseProfile.supervisor.ilike(f"%{supervisor}%"))
+    if service_status:
+        q = q.where(CaseProfile.service_status.ilike(f"%{service_status}%"))
+
+    # Total count
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    if total == 0:
+        terms = []
+        if district:
+            terms.append(f"地區「{district}」")
+        if supervisor:
+            terms.append(f"督導員「{supervisor}」")
+        if service_status:
+            terms.append(f"服務狀態「{service_status}」")
+        desc = "（" + " + ".join(terms) + "）" if terms else ""
+        return f"目前沒有{desc}的個案。"
+
+    offset = (page - 1) * page_size
+    result = await db.execute(q.order_by(CaseProfile.name).offset(offset).limit(page_size))
+    cases = result.scalars().all()
+
+    total_pages = (total + page_size - 1) // page_size
+
+    filter_desc = []
+    if district:
+        filter_desc.append(f"地區：{district}")
+    if supervisor:
+        filter_desc.append(f"督導員：{supervisor}")
+    if service_status:
+        filter_desc.append(f"服務狀態：{service_status}")
+    filter_note = "（" + "、".join(filter_desc) + "）" if filter_desc else ""
 
     lines = []
     for c in cases:
@@ -645,7 +882,155 @@ async def _exec_search_cases(args: dict, current_user: User, db: AsyncSession) -
             parts.append(f"督導：{c.supervisor}")
         lines.append("、".join(parts))
 
-    return f"找到 {len(cases)} 筆個案：\n" + "\n".join(f"- {l}" for l in lines)
+    header = f"共 {total} 個個案{filter_note}，第 {page}/{total_pages} 頁（每頁 {page_size} 筆）："
+    return header + "\n" + "\n".join(f"- {l}" for l in lines)
+
+
+async def _exec_get_org_summary(args: dict, current_user: User, db: AsyncSession) -> str:
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+    today = date.today()
+    month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+
+    # Total cases
+    total_cases = (
+        await db.execute(
+            select(func.count()).select_from(CaseProfile).where(CaseProfile.org_id == current_user.org_id)
+        )
+    ).scalar() or 0
+
+    # Draft records
+    draft_count = (
+        await db.execute(
+            select(func.count()).select_from(VisitRecord).where(
+                VisitRecord.user_id.in_(org_user_ids),
+                VisitRecord.status == RecordStatus.draft,
+            )
+        )
+    ).scalar() or 0
+
+    # This month visits
+    home_count = (
+        await db.execute(
+            select(func.count()).select_from(VisitRecord).where(
+                VisitRecord.user_id.in_(org_user_ids),
+                VisitRecord.visit_date >= month_start,
+                VisitRecord.visit_type == VisitType.home,
+            )
+        )
+    ).scalar() or 0
+
+    phone_count = (
+        await db.execute(
+            select(func.count()).select_from(VisitRecord).where(
+                VisitRecord.user_id.in_(org_user_ids),
+                VisitRecord.visit_date >= month_start,
+                VisitRecord.visit_type == VisitType.phone,
+            )
+        )
+    ).scalar() or 0
+
+    # Per-supervisor workload this month
+    sup_q = (
+        select(User.name, func.count(VisitRecord.id))
+        .join(VisitRecord, VisitRecord.user_id == User.id)
+        .where(
+            User.org_id == current_user.org_id,
+            VisitRecord.visit_date >= month_start,
+        )
+        .group_by(User.name)
+        .order_by(func.count(VisitRecord.id).desc())
+    )
+    sup_rows = (await db.execute(sup_q)).all()
+
+    # Compliance counts (batch)
+    cases_r = await db.execute(
+        select(CaseProfile).where(CaseProfile.org_id == current_user.org_id)
+    )
+    all_cases = cases_r.scalars().all()
+    case_ids = [c.id for c in all_cases]
+    last_visits = await _get_last_visits(db, case_ids)
+
+    overdue_count = 0
+    due_soon_count = 0
+    for c in all_cases:
+        lv = last_visits.get(c.id, {})
+        _, _, overall = compute_compliance(lv.get("phone"), lv.get("home"), today)
+        if overall.value == "overdue":
+            overdue_count += 1
+        elif overall.value == "due_soon":
+            due_soon_count += 1
+
+    lines = [
+        f"**全機構快照（{today.strftime('%Y/%m/%d')}）**",
+        f"",
+        f"📋 個案總數：{total_cases} 人",
+        f"⚠️  逾期個案：{overdue_count} 人",
+        f"⏰  即將到期：{due_soon_count} 人",
+        f"",
+        f"📅 本月訪視（{today.month} 月）：",
+        f"   家訪 {home_count} 次、電訪 {phone_count} 次、合計 {home_count + phone_count} 次",
+        f"",
+        f"📝 草稿紀錄：{draft_count} 筆",
+    ]
+
+    if sup_rows:
+        lines.append("")
+        lines.append("👥 本月各督導員工作量：")
+        for name, count in sup_rows:
+            lines.append(f"   - {name}：{count} 次")
+
+    return "\n".join(lines)
+
+
+async def _exec_get_record_detail(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "")
+    visit_date_str = args.get("visit_date", "")
+    visit_type_str = args.get("visit_type", "")
+
+    if not case_name:
+        return "請提供個案姓名。"
+
+    if current_user.role == UserRole.admin:
+        org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+        q = select(VisitRecord).where(
+            VisitRecord.user_id.in_(org_user_ids),
+            VisitRecord.case_name.ilike(f"%{case_name}%"),
+        )
+    else:
+        q = select(VisitRecord).where(
+            VisitRecord.user_id == current_user.id,
+            VisitRecord.case_name.ilike(f"%{case_name}%"),
+        )
+
+    if visit_date_str:
+        try:
+            vd = datetime.strptime(visit_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            q = q.where(
+                VisitRecord.visit_date >= vd,
+                VisitRecord.visit_date < vd + timedelta(days=1),
+            )
+        except ValueError:
+            return f"日期格式錯誤：{visit_date_str}，請使用 YYYY-MM-DD。"
+
+    if visit_type_str in ("home", "phone"):
+        q = q.where(VisitRecord.visit_type == VisitType(visit_type_str))
+
+    q = q.order_by(VisitRecord.visit_date.desc()).limit(1)
+    result = await db.execute(q)
+    record = result.scalar_one_or_none()
+
+    if not record:
+        return f"找不到「{case_name}」的訪視紀錄。"
+
+    vt = "家訪" if record.visit_type == VisitType.home else "電訪"
+    st = "已完成" if record.status == RecordStatus.completed else "草稿"
+    d = record.visit_date.strftime("%Y/%m/%d")
+    content = record.refined_content or record.raw_input or "（無內容）"
+
+    return (
+        f"**{record.case_name}** {d} {vt}（{st}）\n\n"
+        f"{content}"
+    )
 
 
 async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSession) -> str:
@@ -660,7 +1045,6 @@ async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSess
     if preferred_day is None or not (1 <= preferred_day <= 28):
         return "preferred_day 必須在 1–28 之間。"
 
-    # Find case with supervisor scope
     q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
     q = _case_filter(q, current_user)
     result = await db.execute(q)
@@ -677,16 +1061,13 @@ async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSess
     if year and month:
         if not (1 <= month <= 12):
             return "month 必須在 1–12 之間。"
-        scope = f"{year}/{month:02d}"
-        target = f"{c.name} 的 {scope} 訪視日設定為 {preferred_day} 日"
+        target = f"{c.name} 的 {year}/{month:02d} 訪視日設定為 {preferred_day} 日"
     else:
-        scope = "預設"
         target = f"{c.name} 的預設訪視日設定為每月 {preferred_day} 日"
 
     if not confirm:
         return f"【預覽】{target}。如確認請再次發送並加上 confirm=true。"
 
-    # Actually write
     if year and month:
         monthly_r = await db.execute(
             select(MonthlyVisitSchedule).where(
@@ -698,10 +1079,7 @@ async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSess
         record = monthly_r.scalar_one_or_none()
         if record is None:
             record = MonthlyVisitSchedule(
-                case_profile_id=c.id,
-                year=year,
-                month=month,
-                preferred_day=preferred_day,
+                case_profile_id=c.id, year=year, month=month, preferred_day=preferred_day,
             )
             db.add(record)
         else:
@@ -714,9 +1092,7 @@ async def _exec_set_visit_schedule(args: dict, current_user: User, db: AsyncSess
         sched = sched_r.scalar_one_or_none()
         if sched is None:
             sched = VisitSchedule(
-                case_profile_id=c.id,
-                preferred_day_of_month=preferred_day,
-                reminder_enabled=True,
+                case_profile_id=c.id, preferred_day_of_month=preferred_day, reminder_enabled=True,
             )
             db.add(sched)
         else:
@@ -751,7 +1127,6 @@ async def _exec_create_draft_record(args: dict, current_user: User, db: AsyncSes
     visit_type = VisitType(visit_type_str)
     vt_label = "家訪" if visit_type == VisitType.home else "電訪"
 
-    # Resolve case_profile_id and district from CaseProfile if available
     cp_q = select(CaseProfile).where(CaseProfile.name.ilike(f"%{case_name}%"))
     cp_q = _case_filter(cp_q, current_user)
     cp_result = await db.execute(cp_q)
@@ -798,7 +1173,6 @@ async def _exec_update_record_status(args: dict, current_user: User, db: AsyncSe
     if not case_name:
         return "請提供個案姓名。"
 
-    # Only own records for non-admin
     if current_user.role == UserRole.admin:
         org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
         q = select(VisitRecord).where(
@@ -838,7 +1212,7 @@ async def _exec_update_record_status(args: dict, current_user: User, db: AsyncSe
             vt = "家訪" if r.visit_type == VisitType.home else "電訪"
             d = r.visit_date.strftime("%Y/%m/%d")
             lines.append(f"- [{vt}] {d}")
-        return f"找到多筆草稿：\n" + "\n".join(lines) + "\n請提供訪視日期或類型以縮小範圍。"
+        return "找到多筆草稿：\n" + "\n".join(lines) + "\n請提供訪視日期或類型以縮小範圍。"
 
     r = records[0]
     vt_label = "家訪" if r.visit_type == VisitType.home else "電訪"
@@ -860,7 +1234,6 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
     year = args.get("year", today.year)
     month = args.get("month", today.month)
 
-    # Get all cases in scope
     q = select(CaseProfile)
     q = _case_filter(q, current_user)
     result = await db.execute(q)
@@ -872,7 +1245,6 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
     case_ids = [c.id for c in cases]
     case_map = {c.id: c for c in cases}
 
-    # Fetch monthly overrides for the target month
     monthly_r = await db.execute(
         select(MonthlyVisitSchedule).where(
             MonthlyVisitSchedule.case_profile_id.in_(case_ids),
@@ -884,7 +1256,6 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
         m.case_profile_id: m.preferred_day for m in monthly_r.scalars().all()
     }
 
-    # Fetch default schedules
     default_r = await db.execute(
         select(VisitSchedule).where(VisitSchedule.case_profile_id.in_(case_ids))
     )
@@ -892,7 +1263,6 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
         s.case_profile_id: s.preferred_day_of_month for s in default_r.scalars().all()
     }
 
-    # Determine reference date window
     window_start = today
     window_end = today + timedelta(days=days_ahead)
 
@@ -904,7 +1274,7 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
         try:
             visit_date = date(year, month, preferred_day)
         except ValueError:
-            continue  # invalid day for month (e.g. Feb 30)
+            continue
 
         if window_start <= visit_date <= window_end:
             c = case_map[cid]
@@ -930,11 +1300,63 @@ FUNCTION_MAP = {
     "get_case_compliance": _exec_get_case_compliance,
     "list_overdue_cases": _exec_list_overdue_cases,
     "search_cases": _exec_search_cases,
+    "list_cases": _exec_list_cases,
+    "get_org_summary": _exec_get_org_summary,
+    "get_record_detail": _exec_get_record_detail,
     "create_draft_record": _exec_create_draft_record,
     "set_visit_schedule": _exec_set_visit_schedule,
     "update_record_status": _exec_update_record_status,
     "get_upcoming_visits": _exec_get_upcoming_visits,
 }
+
+
+# ---------- Context endpoint (for dynamic quick prompts) ----------
+
+@router.get("/context")
+async def get_ai_context(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return lightweight context for the frontend to build dynamic quick prompts."""
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+    today = date.today()
+
+    # Draft records (scoped by role)
+    if current_user.role == UserRole.admin:
+        draft_q = select(func.count()).select_from(VisitRecord).where(
+            VisitRecord.user_id.in_(org_user_ids),
+            VisitRecord.status == RecordStatus.draft,
+        )
+    else:
+        draft_q = select(func.count()).select_from(VisitRecord).where(
+            VisitRecord.user_id == current_user.id,
+            VisitRecord.status == RecordStatus.draft,
+        )
+    draft_count = (await db.execute(draft_q)).scalar() or 0
+
+    # Compliance counts (batch, org-scoped)
+    cases_r = await db.execute(
+        select(CaseProfile).where(CaseProfile.org_id == current_user.org_id)
+    )
+    all_cases = cases_r.scalars().all()
+    case_ids = [c.id for c in all_cases]
+    last_visits = await _get_last_visits(db, case_ids)
+
+    overdue_count = 0
+    due_soon_count = 0
+    for c in all_cases:
+        lv = last_visits.get(c.id, {})
+        _, _, overall = compute_compliance(lv.get("phone"), lv.get("home"), today)
+        if overall.value == "overdue":
+            overdue_count += 1
+        elif overall.value == "due_soon":
+            due_soon_count += 1
+
+    return {
+        "draft_count": draft_count,
+        "overdue_count": overdue_count,
+        "due_soon_count": due_soon_count,
+    }
 
 
 # ---------- Chat endpoint ----------
@@ -965,35 +1387,69 @@ async def chat(
     org_r = await db.execute(select(Organization.name).where(Organization.id == current_user.org_id))
     org_name = org_r.scalar() or ""
 
+    # Query dynamic context for richer system prompt
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+    total_cases = (
+        await db.execute(
+            select(func.count()).select_from(CaseProfile).where(CaseProfile.org_id == current_user.org_id)
+        )
+    ).scalar() or 0
+
+    if current_user.role == UserRole.admin:
+        draft_count = (
+            await db.execute(
+                select(func.count()).select_from(VisitRecord).where(
+                    VisitRecord.user_id.in_(org_user_ids),
+                    VisitRecord.status == RecordStatus.draft,
+                )
+            )
+        ).scalar() or 0
+    else:
+        draft_count = (
+            await db.execute(
+                select(func.count()).select_from(VisitRecord).where(
+                    VisitRecord.user_id == current_user.id,
+                    VisitRecord.status == RecordStatus.draft,
+                )
+            )
+        ).scalar() or 0
+
     today_str = date.today().isoformat()
     system_prompt = (
         f"你是「長照小幫手」，一個專為居家長照督導員設計的 AI 助理。\n"
         f"你可以幫助督導員查詢個案資料、家電訪紀錄、統計數據，並協助撰寫文件。\n\n"
         f"目前登入使用者：{current_user.name}（{current_user.role.value}）\n"
         f"所屬機構：{org_name}\n"
-        f"今天日期：{today_str}\n\n"
+        f"今天日期：{today_str}\n"
+        f"機構共有 {total_cases} 個個案。\n"
+        f"{'你' if current_user.role != UserRole.admin else '機構'}目前有 {draft_count} 筆草稿紀錄待完成。\n\n"
         f"你只能查詢該使用者所屬機構的資料。\n"
         f"回答請使用繁體中文，語氣親切專業。\n"
         f"若使用者詢問系統外的問題，請禮貌說明你的職責範圍。"
     )
 
-    # Build messages
-    history: List[dict] = list(session.messages or [])
+    # Load history and compress if needed
+    history: list[dict] = list(session.messages or [])
+
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, timeout=60.0)
+
+    if len(history) >= COMPRESS_THRESHOLD:
+        history = await _compress_history(history, client)
+        session.messages = history
+        await db.flush()
+
     history.append({"role": "user", "content": body.message})
 
-    # Trim to max history
     if len(history) > MAX_HISTORY:
         history = history[-MAX_HISTORY:]
 
     messages = [{"role": "system", "content": system_prompt}] + history
-
     session_id = session.id
 
     async def generate():
         nonlocal history
-        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, timeout=60.0)
 
-        # First call – may return function call
+        # First call — may return function call
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
@@ -1023,7 +1479,8 @@ async def chat(
             else:
                 fn_result = f"未知的函數：{fn_name}"
 
-            yield f"data: {json.dumps({'type': 'function_result', 'content': fn_result[:200]}, ensure_ascii=False)}\n\n"
+            # Send full result to frontend (no truncation)
+            yield f"data: {json.dumps({'type': 'function_result', 'content': fn_result}, ensure_ascii=False)}\n\n"
 
             current_messages.append({
                 "role": "assistant",
@@ -1052,7 +1509,7 @@ async def chat(
 
         chunk_size = 20
         for i in range(0, len(final_text), chunk_size):
-            chunk = final_text[i : i + chunk_size]
+            chunk = final_text[i: i + chunk_size]
             yield f"data: {json.dumps({'type': 'text', 'content': chunk}, ensure_ascii=False)}\n\n"
 
         # Save to session
