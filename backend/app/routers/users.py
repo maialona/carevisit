@@ -31,7 +31,7 @@ async def _enrich_user(user: User, db: AsyncSession) -> UserWithStatsResponse:
     latest_result = await db.execute(latest_q)
     record_count = count_result.scalar() or 0
     last_record_date = latest_result.scalar()
-    
+
     return UserWithStatsResponse(
         id=user.id,
         org_id=user.org_id,
@@ -45,6 +45,51 @@ async def _enrich_user(user: User, db: AsyncSession) -> UserWithStatsResponse:
         record_count=record_count,
     )
 
+
+# ── /me routes (must be defined before /{user_id} to avoid route conflicts) ──
+
+@router.put("/me/password", status_code=status.HTTP_200_OK)
+async def change_my_password(
+    body: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前密碼不正確")
+    current_user.hashed_password = hash_password(body.new_password)
+    await db.flush()
+    return {"message": "密碼已更新"}
+
+
+@router.put("/me/avatar", response_model=UserResponse)
+async def update_my_avatar(
+    body: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.avatar is None:
+        raise HTTPException(status_code=400, detail="請提供頭像圖片名稱")
+
+    current_user.avatar = body.avatar
+    await db.flush()
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_my_profile(
+    body: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="名稱不能為空")
+        current_user.name = body.name.strip()
+    await db.flush()
+    return current_user
+
+
+# ── Admin-only routes ──
 
 @router.get("", response_model=List[UserWithStatsResponse])
 async def list_users(
@@ -64,7 +109,6 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    # Check if user email exists
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="該 Email 已被使用")
@@ -97,7 +141,7 @@ async def update_user(
     update_data = body.model_dump(exclude_unset=True)
     if "role" in update_data:
         update_data["role"] = UserRole(update_data["role"])
-    
+
     for field, value in update_data.items():
         setattr(user, field, value)
 
@@ -165,7 +209,6 @@ async def delete_user_permanent(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="使用者不存在")
 
-    # Check if user has any visit records
     record_count = await db.execute(
         select(func.count()).select_from(VisitRecord).where(VisitRecord.user_id == user_id)
     )
@@ -179,44 +222,3 @@ async def delete_user_permanent(
     await db.delete(user)
     await db.flush()
     return {"message": "帳號已永久刪除"}
-
-
-@router.put("/me/password", status_code=status.HTTP_200_OK)
-async def change_my_password(
-    body: ChangePasswordRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not verify_password(body.current_password, current_user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前密碼不正確")
-    current_user.hashed_password = hash_password(body.new_password)
-    await db.flush()
-    return {"message": "密碼已更新"}
-
-
-@router.put("/me", response_model=UserResponse)
-async def update_my_profile(
-    body: UserUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if body.name is not None:
-        if not body.name.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="名稱不能為空")
-        current_user.name = body.name.strip()
-    await db.flush()
-    return current_user
-
-
-@router.put("/me/avatar", response_model=UserResponse)
-async def update_my_avatar(
-    body: UserUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if body.avatar is None:
-        raise HTTPException(status_code=400, detail="請提供頭像圖片名稱")
-    
-    current_user.avatar = body.avatar
-    await db.flush()
-    return current_user
