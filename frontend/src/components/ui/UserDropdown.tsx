@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut, Shield, Pencil, User as UserIcon, Lock } from "lucide-react";
+import { ChevronDown, LogOut, Shield, Pencil, Lock } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import api from "../../api/axios";
 
@@ -98,10 +98,8 @@ export default function UserDropdown({ name, role, onLogout }: UserDropdownProps
 
   const goTo = (v: View) => {
     setView(v);
-    setNameError("");
     setPwdError("");
     setPwdSuccess(false);
-    if (v === "name") setNameInput(user?.name || "");
     if (v === "password") { setPwdCurrent(""); setPwdNew(""); setPwdConfirm(""); }
   };
 
