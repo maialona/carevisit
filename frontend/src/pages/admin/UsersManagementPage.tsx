@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "../../api/axios";
 import { useToast } from "../../contexts/ToastContext";
-import { useOrgStore } from "../../store/orgStore";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import { Plus, Copy, X, Loader2, Pencil, KeyRound, UserX, Trash2 } from "lucide-react";
-import type { OrgSettings } from "../../types";
 
 interface User {
   id: string;
@@ -15,15 +13,15 @@ interface User {
   created_at: string;
   last_record_date: string | null;
   record_count: number;
+  can_create_case: boolean;
+  can_delete_case: boolean;
 }
 
 export default function UsersManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
-  const { settings, setSettings } = useOrgStore();
-  const [togglingCreate, setTogglingCreate] = useState(false);
-  const [togglingDelete, setTogglingDelete] = useState(false);
+  const [togglingPerm, setTogglingPerm] = useState<string | null>(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -98,19 +96,20 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleToggleOrgSetting = async (
-    key: "supervisor_can_create_case" | "supervisor_can_delete_case",
+  const handleToggleUserPerm = async (
+    userId: string,
+    key: "can_create_case" | "can_delete_case",
     value: boolean
   ) => {
-    const setToggling = key === "supervisor_can_create_case" ? setTogglingCreate : setTogglingDelete;
-    setToggling(true);
+    const toggleKey = `${userId}_${key}`;
+    setTogglingPerm(toggleKey);
     try {
-      const { data } = await api.put<OrgSettings>("/org/settings", { [key]: value });
-      setSettings(data);
+      const { data } = await api.put<User>(`/users/${userId}`, { [key]: value });
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...data } : u)));
     } catch {
       showToast("設定更新失敗", "error");
     } finally {
-      setToggling(false);
+      setTogglingPerm(null);
     }
   };
 
@@ -135,56 +134,8 @@ export default function UsersManagementPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in space-y-6">
-      {/* Supervisor permissions */}
-      <div className="card p-5">
-        <h3 className="mb-1 text-sm font-bold text-gray-900">督導員權限設定</h3>
-        <p className="mb-4 text-xs text-gray-500">開啟後，所有督導員都可以執行對應的個案管理操作。</p>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-800">新增 / 編輯 / 匯入個案</p>
-              <p className="text-xs text-gray-400">允許督導員新增個案、編輯個案資料及匯入 Excel</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={settings?.supervisor_can_create_case ?? false}
-              disabled={togglingCreate}
-              onClick={() => handleToggleOrgSetting("supervisor_can_create_case", !(settings?.supervisor_can_create_case ?? false))}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${
-                settings?.supervisor_can_create_case ? "bg-gray-900" : "bg-gray-200"
-              }`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                settings?.supervisor_can_create_case ? "translate-x-5" : "translate-x-0"
-              }`} />
-            </button>
-          </div>
-          <div className="border-t border-gray-100" />
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-800">刪除個案</p>
-              <p className="text-xs text-gray-400">允許督導員刪除個案資料（包含批次刪除）</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={settings?.supervisor_can_delete_case ?? false}
-              disabled={togglingDelete}
-              onClick={() => handleToggleOrgSetting("supervisor_can_delete_case", !(settings?.supervisor_can_delete_case ?? false))}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${
-                settings?.supervisor_can_delete_case ? "bg-gray-900" : "bg-gray-200"
-              }`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                settings?.supervisor_can_delete_case ? "translate-x-5" : "translate-x-0"
-              }`} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-4 flex items-center justify-between">
+    <div className="mx-auto max-w-5xl animate-fade-in">
+      <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">帳號管理</h2>
           <button
             onClick={() => { setEditingUser(null); setShowModal(true); }}
@@ -210,6 +161,8 @@ export default function UsersManagementPage() {
                 <th className="px-4 py-3">狀態</th>
                 <th className="px-4 py-3">最近活動</th>
                 <th className="px-4 py-3">紀錄數</th>
+                <th className="px-4 py-3 whitespace-nowrap">新增/編輯個案</th>
+                <th className="px-4 py-3 whitespace-nowrap">刪除個案</th>
                 <th className="px-4 py-3">操作</th>
               </tr>
             </thead>
@@ -234,6 +187,36 @@ export default function UsersManagementPage() {
                     {u.last_record_date ? new Date(u.last_record_date).toLocaleDateString("zh-TW") : "無"}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{u.record_count}</td>
+                  <td className="px-4 py-3">
+                    {u.role === "supervisor" ? (
+                      <button
+                        role="switch"
+                        aria-checked={u.can_create_case}
+                        disabled={togglingPerm === `${u.id}_can_create_case`}
+                        onClick={() => handleToggleUserPerm(u.id, "can_create_case", !u.can_create_case)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${u.can_create_case ? "bg-gray-900" : "bg-gray-200"}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${u.can_create_case ? "translate-x-4" : "translate-x-0"}`} />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">完整權限</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {u.role === "supervisor" ? (
+                      <button
+                        role="switch"
+                        aria-checked={u.can_delete_case}
+                        disabled={togglingPerm === `${u.id}_can_delete_case`}
+                        onClick={() => handleToggleUserPerm(u.id, "can_delete_case", !u.can_delete_case)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${u.can_delete_case ? "bg-gray-900" : "bg-gray-200"}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${u.can_delete_case ? "translate-x-4" : "translate-x-0"}`} />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">完整權限</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button 
@@ -378,8 +361,6 @@ export default function UsersManagementPage() {
           </div>
         </div>
       )}
-
-      </div>
 
       <ConfirmModal
         open={showDeactivateConfirm}

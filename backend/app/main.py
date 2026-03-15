@@ -13,7 +13,7 @@ import app.core.logging as app_logging
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import ai, auth, case_profiles, chat, clients, export, org, records, users, stats, schedule
+from app.routers import ai, auth, case_profiles, chat, clients, export, records, users, stats, schedule
 
 
 @asynccontextmanager
@@ -70,10 +70,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
         """))
         await conn.execute(text(
-            "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS supervisor_can_create_case BOOLEAN NOT NULL DEFAULT FALSE"
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create_case BOOLEAN NOT NULL DEFAULT FALSE"
         ))
         await conn.execute(text(
-            "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS supervisor_can_delete_case BOOLEAN NOT NULL DEFAULT FALSE"
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete_case BOOLEAN NOT NULL DEFAULT FALSE"
         ))
         # Backfill org_name with case district for records linked to a case profile
         await conn.execute(text("""
@@ -107,7 +107,6 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
 app.include_router(case_profiles.router, prefix="/api")
-app.include_router(org.router, prefix="/api")
 app.include_router(schedule.router, prefix="/api")
 
 

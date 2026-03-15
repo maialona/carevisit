@@ -7,6 +7,8 @@ export interface User {
   role: "admin" | "supervisor";
   avatar?: string;
   is_active: boolean;
+  can_create_case: boolean;
+  can_delete_case: boolean;
   created_at: string;
 }
 
@@ -24,15 +26,6 @@ export interface AccessTokenResponse {
 export interface LoginFormValues {
   email: string;
   password: string;
-}
-
-// --- Org ---
-export interface OrgSettings {
-  id: string;
-  name: string;
-  supervisor_can_create_case: boolean;
-  supervisor_can_delete_case: boolean;
-  created_at: string;
 }
 
 // --- Generic ---
