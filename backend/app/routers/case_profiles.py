@@ -153,6 +153,7 @@ async def update_case_profile(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    _require_create_perm(current_user, await _get_org(current_user, db))
     result = await db.execute(
         select(CaseProfile).where(CaseProfile.id == case_id, CaseProfile.org_id == current_user.org_id)
     )

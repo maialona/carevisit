@@ -286,13 +286,15 @@ export default function CaseProfilesPage() {
                         >
                           <ClipboardList className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => { setEditingCase(c); setShowForm(true); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
-                          title="編輯"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
+                        {canCreateCase && (
+                          <button
+                            onClick={() => { setEditingCase(c); setShowForm(true); }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-surface-100 hover:text-primary-600"
+                            title="編輯"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
                         {canDeleteCase && (
                           <button
                             onClick={() => { setCaseToDelete(c); setShowDeleteConfirm(true); }}
