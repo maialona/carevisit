@@ -54,7 +54,7 @@ export default function ClientsPage() {
           <Users className="h-5 w-5 text-primary-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">個案卡片</h2>
+          <h2 className="text-xl font-bold text-gray-900">訪視歷程</h2>
           <p className="text-xs font-medium text-gray-400">瀏覽所有個案的訪視歷程</p>
         </div>
       </div>
