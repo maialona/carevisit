@@ -194,7 +194,7 @@ class AuditLog(Base):
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
     actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     actor_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    action: Mapped[AuditActionType] = mapped_column(Enum(AuditActionType), nullable=False)
+    action: Mapped[AuditActionType] = mapped_column(Enum(AuditActionType, native_enum=False), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
     resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     resource_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
