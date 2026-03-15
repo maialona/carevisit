@@ -1,6 +1,6 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 
 export interface FunctionCallDisplay {
   name: string;
@@ -12,6 +12,7 @@ interface ChatMessageProps {
   content: string;
   functionCalls?: FunctionCallDisplay[];
   isStreaming?: boolean;
+  onConfirm?: () => void;
 }
 
 export default function ChatMessage({
@@ -19,6 +20,7 @@ export default function ChatMessage({
   content,
   functionCalls,
   isStreaming = false,
+  onConfirm,
 }: ChatMessageProps) {
   const isUser = role === "user";
 
@@ -60,6 +62,19 @@ export default function ChatMessage({
         {/* Streaming cursor */}
         {isStreaming && (
           <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-gray-400" />
+        )}
+
+        {/* Confirm button */}
+        {onConfirm && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <button
+              onClick={onConfirm}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-bold text-primary-500 shadow-sm transition-all hover:bg-gray-700 active:scale-95"
+            >
+              <Check className="h-3.5 w-3.5" />
+              確認寫入
+            </button>
+          </div>
         )}
       </div>
     </div>

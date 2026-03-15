@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional
 
@@ -313,6 +314,53 @@ AGENT_FUNCTIONS = [
                 "days_ahead": {"type": "integer", "description": "查詢未來幾天，預設 7"},
                 "year": {"type": "integer"},
                 "month": {"type": "integer"},
+            },
+        },
+    },
+    {
+        "name": "update_visit_record",
+        "description": "更新訪視紀錄的內容或將草稿標記為完成。第一次呼叫請用 confirm=false 預覽，確認後再用 confirm=true 寫入。",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name", "visit_date", "confirm"],
+            "properties": {
+                "case_name": {"type": "string", "description": "個案姓名"},
+                "visit_date": {"type": "string", "description": "訪視日期 YYYY-MM-DD，用來定位特定紀錄"},
+                "visit_type": {"type": "string", "enum": ["home", "phone"], "description": "訪視類型（可選，用來在同日有多筆時篩選）"},
+                "refined_content": {"type": "string", "description": "新的訪視紀錄內容（可選）"},
+                "mark_completed": {"type": "boolean", "description": "設為 true 將草稿標記為已完成（可選）"},
+                "confirm": {"type": "boolean", "description": "false 時只顯示預覽，true 才實際寫入"},
+            },
+        },
+    },
+    {
+        "name": "update_case_profile",
+        "description": "更新個案基本資料，如服務狀態、督導員、電話、地址。第一次呼叫請用 confirm=false 預覽，確認後再用 confirm=true 寫入。",
+        "parameters": {
+            "type": "object",
+            "required": ["case_name", "confirm"],
+            "properties": {
+                "case_name": {"type": "string", "description": "個案姓名"},
+                "supervisor": {"type": "string", "description": "新的督導員姓名（可選）"},
+                "service_status": {"type": "string", "description": "新的服務狀態，如「服務中」、「暫停服務」、「已結案」（可選）"},
+                "phone": {"type": "string", "description": "新的電話號碼（可選）"},
+                "address": {"type": "string", "description": "新的地址（可選）"},
+                "district": {"type": "string", "description": "新的地區/區（可選）"},
+                "confirm": {"type": "boolean", "description": "false 時只顯示預覽，true 才實際寫入"},
+            },
+        },
+    },
+    {
+        "name": "get_schedule_suggestions",
+        "description": "智慧排程建議：分析所有個案的訪視合規狀態與排程設定，提供未設排程個案、逾期風險個案、以及同地區集中安排的建議。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "focus": {
+                    "type": "string",
+                    "enum": ["overview", "no_schedule", "at_risk", "by_district"],
+                    "description": "建議類型：overview 全面概覽（預設）、no_schedule 未設排程的個案、at_risk 逾期或即將到期的個案、by_district 依地區分組集中安排",
+                },
             },
         },
     },
@@ -1364,6 +1412,260 @@ async def _exec_get_upcoming_visits(args: dict, current_user: User, db: AsyncSes
     return f"未來 {days_ahead} 天內排定訪視的個案（共 {len(upcoming)} 筆）：\n" + "\n".join(lines)
 
 
+async def _exec_update_visit_record(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "")
+    visit_date_str = args.get("visit_date", "")
+    visit_type_str = args.get("visit_type")
+    refined_content = args.get("refined_content")
+    mark_completed = args.get("mark_completed", False)
+    confirm = args.get("confirm", False)
+
+    if not case_name or not visit_date_str:
+        return "請提供個案姓名和訪視日期。"
+
+    try:
+        visit_date = datetime.strptime(visit_date_str, "%Y-%m-%d")
+    except ValueError:
+        return "日期格式錯誤，請用 YYYY-MM-DD。"
+
+    start = visit_date.replace(tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+    q = select(VisitRecord).where(
+        VisitRecord.case_name.ilike(f"%{case_name}%"),
+        VisitRecord.visit_date >= start,
+        VisitRecord.visit_date < end,
+    )
+    if current_user.role != UserRole.admin:
+        q = q.where(VisitRecord.user_id == current_user.id)
+    else:
+        org_ids = select(User.id).where(User.org_id == current_user.org_id)
+        q = q.where(VisitRecord.user_id.in_(org_ids))
+    if visit_type_str:
+        q = q.where(VisitRecord.visit_type == VisitType(visit_type_str))
+
+    records = (await db.execute(q)).scalars().all()
+    if not records:
+        return f"找不到 {case_name} 在 {visit_date_str} 的訪視紀錄。"
+    if len(records) > 1:
+        return f"找到 {len(records)} 筆，請提供 visit_type（home/phone）來指定。"
+
+    record = records[0]
+
+    if not refined_content and not mark_completed:
+        return "請提供要更新的內容（refined_content）或設定 mark_completed=true。"
+
+    preview_lines = [f"【預覽】將更新 {record.case_name} {visit_date_str} 訪視紀錄："]
+    if refined_content:
+        preview_lines.append(f"- 內容：{refined_content[:80]}{'...' if len(refined_content) > 80 else ''}")
+    if mark_completed:
+        preview_lines.append("- 狀態：草稿 → 已完成")
+    preview_lines.append("確認請重新呼叫並設定 confirm=true。")
+
+    if not confirm:
+        return "\n".join(preview_lines)
+
+    if refined_content:
+        record.raw_input = refined_content
+        record.refined_content = refined_content
+    if mark_completed:
+        record.status = RecordStatus.completed
+    record.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return f"已成功更新 {record.case_name} {visit_date_str} 的訪視紀錄。"
+
+
+async def _exec_update_case_profile(args: dict, current_user: User, db: AsyncSession) -> str:
+    case_name = args.get("case_name", "")
+    confirm = args.get("confirm", False)
+
+    updatable = ["supervisor", "service_status", "phone", "address", "district"]
+    updates = {k: args[k] for k in updatable if k in args and args[k] is not None}
+
+    if not case_name:
+        return "請提供個案姓名。"
+    if not updates:
+        return "請提供至少一個要更新的欄位。"
+
+    q = select(CaseProfile).where(
+        CaseProfile.name.ilike(f"%{case_name}%"),
+        CaseProfile.org_id == current_user.org_id,
+    )
+    cases = (await db.execute(q)).scalars().all()
+    if not cases:
+        return f"找不到名字包含「{case_name}」的個案。"
+    if len(cases) > 1:
+        names = "、".join(c.name for c in cases[:5])
+        return f"找到多筆相符個案：{names}，請提供更精確的姓名。"
+
+    case = cases[0]
+
+    field_labels = {
+        "supervisor": "督導員",
+        "service_status": "服務狀態",
+        "phone": "電話",
+        "address": "地址",
+        "district": "地區",
+    }
+
+    preview_lines = [f"【預覽】將更新個案「{case.name}」："]
+    for k, v in updates.items():
+        old = getattr(case, k) or "（空）"
+        preview_lines.append(f"- {field_labels[k]}：{old} → {v}")
+    preview_lines.append("確認請重新呼叫並設定 confirm=true。")
+
+    if not confirm:
+        return "\n".join(preview_lines)
+
+    for k, v in updates.items():
+        setattr(case, k, v)
+    case.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return f"已成功更新個案「{case.name}」的資料。"
+
+
+async def _exec_get_schedule_suggestions(args: dict, current_user: User, db: AsyncSession) -> str:
+    focus = args.get("focus", "overview")
+
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+    cases = (await db.execute(q)).scalars().all()
+
+    if not cases:
+        return "目前沒有個案資料。"
+
+    case_ids = [c.id for c in cases]
+    today = date.today()
+
+    last_visits = await _get_last_visits(db, case_ids)
+
+    schedule_r = await db.execute(
+        select(VisitSchedule).where(VisitSchedule.case_profile_id.in_(case_ids))
+    )
+    schedule_map = {s.case_profile_id: s for s in schedule_r.scalars().all()}
+
+    status_label = {
+        "ok": "✅ 正常",
+        "pending": "⏳ 待訪",
+        "due_soon": "🔜 即將到期",
+        "overdue": "❌ 逾期",
+        "no_record": "📭 無紀錄",
+    }
+
+    case_infos = []
+    for c in cases:
+        lv = last_visits.get(c.id, {})
+        _, home_detail, overall = compute_compliance(lv.get("phone"), lv.get("home"), today)
+        sched = schedule_map.get(c.id)
+        case_infos.append({
+            "case": c,
+            "home_detail": home_detail,
+            "overall": overall,
+            "schedule": sched,
+            "has_schedule": sched is not None and sched.preferred_day_of_month is not None,
+        })
+
+    if focus == "no_schedule":
+        no_sched = [ci for ci in case_infos if not ci["has_schedule"]]
+        if not no_sched:
+            return "所有個案都已設定固定排程日！"
+
+        # Build per-district common-day reference from scheduled cases
+        district_days: dict[str, list[int]] = defaultdict(list)
+        for ci in case_infos:
+            if ci["has_schedule"]:
+                d = ci["case"].district or "未設定"
+                district_days[d].append(ci["schedule"].preferred_day_of_month)
+
+        lines = [f"共 **{len(no_sched)}** 位個案尚未設定固定排程日：\n"]
+        for ci in no_sched[:15]:
+            c = ci["case"]
+            district = c.district or "未設定地區"
+            st = status_label.get(ci["overall"].value, ci["overall"].value)
+            days = district_days.get(district)
+            suggestion = f"（建議第 {Counter(days).most_common(1)[0][0]} 日，同地區慣用）" if days else ""
+            lines.append(f"- **{c.name}**（{district}）{st} {suggestion}")
+        if len(no_sched) > 15:
+            lines.append(f"  ...還有 {len(no_sched) - 15} 位")
+        lines.append("\n可呼叫 `set_visit_schedule` 為各個案設定每月固定訪視日。")
+        return "\n".join(lines)
+
+    elif focus == "at_risk":
+        at_risk = [ci for ci in case_infos if ci["overall"].value in ("overdue", "due_soon")]
+        if not at_risk:
+            return "目前沒有逾期或即將到期的個案，排程狀況良好！🎉"
+
+        at_risk.sort(key=lambda x: 0 if x["overall"].value == "overdue" else 1)
+        lines = [f"共 **{len(at_risk)}** 位個案需要優先安排：\n"]
+        for ci in at_risk:
+            c = ci["case"]
+            st = status_label.get(ci["overall"].value, ci["overall"].value)
+            sched = ci["schedule"]
+            sched_info = f"（排程第 {sched.preferred_day_of_month} 日）" if sched and sched.preferred_day_of_month else "（未設排程）"
+            home = ci["home_detail"]
+            if home and home.due_by:
+                days_left = (home.due_by - today).days
+                due_info = f"，家訪期限 {home.due_by.strftime('%m/%d')}（剩 {days_left} 天）"
+            else:
+                due_info = ""
+            lines.append(f"- **{c.name}** {st}{sched_info}{due_info}")
+        lines.append("\n建議優先安排上述個案家訪，必要時使用 `set_visit_schedule` 調整排程日。")
+        return "\n".join(lines)
+
+    elif focus == "by_district":
+        district_map: dict[str, list[dict]] = defaultdict(list)
+        for ci in case_infos:
+            d = ci["case"].district or "未設定地區"
+            district_map[d].append(ci)
+
+        lines = ["依地區分組的排程建議：\n"]
+        for district, cis in sorted(district_map.items(), key=lambda x: -len(x[1])):
+            total = len(cis)
+            at_risk_count = sum(1 for ci in cis if ci["overall"].value in ("overdue", "due_soon"))
+            no_sched_count = sum(1 for ci in cis if not ci["has_schedule"])
+            sched_days = [ci["schedule"].preferred_day_of_month for ci in cis if ci["has_schedule"]]
+            day_dist = Counter(sched_days)
+
+            lines.append(f"**{district}**（共 {total} 位）")
+            if sched_days:
+                day_summary = "、".join(
+                    f"第{d}日×{c}人" if c > 1 else f"第{d}日"
+                    for d, c in day_dist.most_common(4)
+                )
+                lines.append(f"  現有排程：{day_summary}")
+                best_day, best_count = day_dist.most_common(1)[0]
+                if best_count > 1:
+                    lines.append(f"  💡 第 {best_day} 日已有 {best_count} 位，可集中安排節省交通")
+            if no_sched_count:
+                lines.append(f"  ⚠ {no_sched_count} 位未設排程")
+            if at_risk_count:
+                lines.append(f"  🔴 {at_risk_count} 位需優先安排")
+        return "\n".join(lines)
+
+    else:  # overview
+        no_sched_count = sum(1 for ci in case_infos if not ci["has_schedule"])
+        overdue_count = sum(1 for ci in case_infos if ci["overall"].value == "overdue")
+        due_soon_count = sum(1 for ci in case_infos if ci["overall"].value == "due_soon")
+        ok_count = sum(1 for ci in case_infos if ci["overall"].value == "ok")
+        total = len(case_infos)
+
+        lines = ["**智慧排程建議概覽**\n"]
+        lines.append(f"機構共 **{total}** 位個案")
+        lines.append(f"- ✅ 正常：{ok_count} 位")
+        lines.append(f"- 🔜 即將到期：{due_soon_count} 位")
+        lines.append(f"- ❌ 逾期：{overdue_count} 位")
+        lines.append(f"- 📅 未設排程：{no_sched_count} 位\n")
+
+        if overdue_count > 0:
+            lines.append(f"🔴 **優先處理**：{overdue_count} 位逾期個案——請查詢「at_risk」取得詳細行動建議")
+        if due_soon_count > 0:
+            lines.append(f"🔜 **即將到期**：{due_soon_count} 位，建議本月內完成訪視")
+        if no_sched_count > 0:
+            lines.append(f"📋 **待設排程**：{no_sched_count} 位個案尚無固定排程日——請查詢「no_schedule」取得建議日期")
+        if overdue_count == 0 and due_soon_count == 0 and no_sched_count == 0:
+            lines.append("🎉 排程狀況良好！所有個案均已設排程且訪視正常。")
+        return "\n".join(lines)
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -1382,6 +1684,9 @@ FUNCTION_MAP = {
     "set_visit_schedule": _exec_set_visit_schedule,
     "update_record_status": _exec_update_record_status,
     "get_upcoming_visits": _exec_get_upcoming_visits,
+    "update_visit_record": _exec_update_visit_record,
+    "update_case_profile": _exec_update_case_profile,
+    "get_schedule_suggestions": _exec_get_schedule_suggestions,
 }
 
 
@@ -1492,7 +1797,7 @@ async def chat(
     today_str = date.today().isoformat()
     system_prompt = (
         f"你是「長照小幫手」，一個專為居家長照督導員設計的 AI 助理。\n"
-        f"你可以幫助督導員查詢個案資料、家電訪紀錄、統計數據，並協助撰寫文件。\n\n"
+        f"你可以幫助督導員查詢個案資料、家電訪紀錄、統計數據、協助撰寫文件、透過對話建立訪視紀錄，以及提供智慧排程建議。\n\n"
         f"目前登入使用者：{current_user.name}（{current_user.role.value}）\n"
         f"所屬機構：{org_name}\n"
         f"今天日期：{today_str}\n"
@@ -1500,7 +1805,16 @@ async def chat(
         f"{'你' if current_user.role != UserRole.admin else '機構'}目前有 {draft_count} 筆草稿紀錄待完成。\n\n"
         f"你只能查詢該使用者所屬機構的資料。\n"
         f"回答請使用繁體中文，語氣親切專業。\n"
-        f"若使用者詢問系統外的問題，請禮貌說明你的職責範圍。"
+        f"若使用者詢問系統外的問題，請禮貌說明你的職責範圍。\n\n"
+        f"【對話建立訪視紀錄流程】\n"
+        f"當使用者說要建立、新增、記錄訪視紀錄時，請依序引導：\n"
+        f"1. 詢問個案姓名（若未提供）\n"
+        f"2. 詢問訪視類型：家訪（home）或電訪（phone）\n"
+        f"3. 詢問訪視日期（若未提供，可建議今天 {today_str}）\n"
+        f"4. 請使用者描述訪視內容（若使用者已提供簡短描述，可協助潤飾成完整紀錄）\n"
+        f"5. 收集完整後呼叫 create_draft_record（confirm=false）顯示預覽\n"
+        f"6. 使用者確認後再呼叫 create_draft_record（confirm=true）寫入系統\n"
+        f"每次只詢問一個尚未提供的欄位，不要一次列出所有問題。"
     )
 
     # Load history and compress if needed

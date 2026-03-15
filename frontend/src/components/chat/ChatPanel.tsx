@@ -236,14 +236,22 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.map((msg, i) => (
-          <ChatMessage
-            key={i}
-            role={msg.role}
-            content={msg.content}
-            functionCalls={msg.functionCalls}
-          />
-        ))}
+        {messages.map((msg, i) => {
+          const isLastAssistant =
+            !sending &&
+            msg.role === "assistant" &&
+            i === messages.length - 1;
+          const isPreview = msg.content.includes("【預覽】");
+          return (
+            <ChatMessage
+              key={i}
+              role={msg.role}
+              content={msg.content}
+              functionCalls={msg.functionCalls}
+              onConfirm={isLastAssistant && isPreview ? () => sendMessage("確認") : undefined}
+            />
+          );
+        })}
 
         {streamingContent && (
           <ChatMessage
