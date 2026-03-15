@@ -67,6 +67,11 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: constr(min_length=8)
+
+
 # --- Organization ---
 class OrganizationResponse(BaseModel):
     id: uuid.UUID

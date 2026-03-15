@@ -10,10 +10,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.deps import get_current_user, require_admin
 from app.models.models import User, UserRole, VisitRecord
 from app.schemas.schemas import (
+    ChangePasswordRequest,
     UserCreate,
     UserResponse,
     UserUpdate,
@@ -178,6 +179,33 @@ async def delete_user_permanent(
     await db.delete(user)
     await db.flush()
     return {"message": "帳號已永久刪除"}
+
+
+@router.put("/me/password", status_code=status.HTTP_200_OK)
+async def change_my_password(
+    body: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前密碼不正確")
+    current_user.hashed_password = hash_password(body.new_password)
+    await db.flush()
+    return {"message": "密碼已更新"}
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_my_profile(
+    body: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="名稱不能為空")
+        current_user.name = body.name.strip()
+    await db.flush()
+    return current_user
 
 
 @router.put("/me/avatar", response_model=UserResponse)

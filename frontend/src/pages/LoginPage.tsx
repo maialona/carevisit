@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
@@ -10,18 +10,32 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const [serverError, setServerError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(
+    () => !!localStorage.getItem("remembered_email")
+  );
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("remembered_email");
+    if (saved) setValue("email", saved);
+  }, [setValue]);
 
   const onSubmit = async (values: LoginFormValues) => {
     setServerError("");
     setIsSubmitting(true);
     try {
       await login(values.email, values.password);
+      if (rememberMe) {
+        localStorage.setItem("remembered_email", values.email);
+      } else {
+        localStorage.removeItem("remembered_email");
+      }
       navigate("/dashboard", { replace: true });
     } catch {
       setServerError("帳號或密碼錯誤，請重新輸入");
@@ -113,6 +127,22 @@ export default function LoginPage() {
                   </p>
                 )}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label
+                htmlFor="rememberMe"
+                className="cursor-pointer text-sm font-medium text-gray-600 select-none"
+              >
+                記住帳號
+              </label>
             </div>
 
             <button
