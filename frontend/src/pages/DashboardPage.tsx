@@ -333,7 +333,7 @@ function ActivityItem({
       </div>
       <div className="flex shrink-0 items-center gap-4">
         {isCompleted ? (
-          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          <CheckCircle2 className="h-5 w-5 text-gray-400" />
         ) : (
           <span className="badge-yellow">草稿</span>
         )}
