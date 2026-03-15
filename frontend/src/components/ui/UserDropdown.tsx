@@ -15,7 +15,7 @@ const AVATARS = [
   "tiger.png",
 ];
 
-type View = "main" | "avatar" | "name" | "password";
+type View = "main" | "avatar" | "password";
 
 interface UserDropdownProps {
   name: string;
@@ -29,11 +29,6 @@ export default function UserDropdown({ name, role, onLogout }: UserDropdownProps
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("main");
   const [avatar, setAvatar] = useState<string | null>(user?.avatar || null);
-
-  // name editing
-  const [nameInput, setNameInput] = useState("");
-  const [nameError, setNameError] = useState("");
-  const [nameSaving, setNameSaving] = useState(false);
 
   // password change
   const [pwdCurrent, setPwdCurrent] = useState("");
@@ -73,23 +68,6 @@ export default function UserDropdown({ name, role, onLogout }: UserDropdownProps
       setView("main");
     } catch {
       // silent
-    }
-  };
-
-  const handleSaveName = async () => {
-    if (!user) return;
-    const trimmed = nameInput.trim();
-    if (!trimmed) { setNameError("名稱不能為空"); return; }
-    setNameSaving(true);
-    setNameError("");
-    try {
-      await api.put("/users/me", { name: trimmed });
-      setUser({ ...user, name: trimmed });
-      setView("main");
-    } catch {
-      setNameError("儲存失敗，請稍後再試");
-    } finally {
-      setNameSaving(false);
     }
   };
 
@@ -185,13 +163,6 @@ export default function UserDropdown({ name, role, onLogout }: UserDropdownProps
               </div>
               <div className="mx-3 border-t border-gray-100" />
               <button
-                onClick={() => goTo("name")}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:bg-surface-50"
-              >
-                <UserIcon className="h-4 w-4" />
-                修改名稱
-              </button>
-              <button
                 onClick={() => goTo("password")}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:bg-surface-50"
               >
@@ -239,44 +210,6 @@ export default function UserDropdown({ name, role, onLogout }: UserDropdownProps
               >
                 返回
               </button>
-            </>
-          )}
-
-          {/* ── Edit name ── */}
-          {view === "name" && (
-            <>
-              <div className="px-4 py-2.5">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">修改名稱</p>
-              </div>
-              <div className="px-4 pb-3">
-                <input
-                  type="text"
-                  value={nameInput}
-                  onChange={(e) => { setNameInput(e.target.value); setNameError(""); }}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                  autoFocus
-                  maxLength={50}
-                  className="input-base w-full text-sm"
-                  placeholder="輸入新名稱"
-                />
-                {nameError && <p className="mt-1.5 text-xs font-medium text-red-500">{nameError}</p>}
-              </div>
-              <div className="mx-3 border-t border-gray-100" />
-              <div className="flex gap-2 px-4 py-2">
-                <button
-                  onClick={() => setView("main")}
-                  className="flex-1 rounded-lg py-1.5 text-xs font-semibold text-gray-500 hover:bg-surface-50 transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSaveName}
-                  disabled={nameSaving}
-                  className="flex-1 rounded-lg bg-gray-900 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                >
-                  {nameSaving ? "儲存中…" : "儲存"}
-                </button>
-              </div>
             </>
           )}
 
