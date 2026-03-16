@@ -41,6 +41,8 @@ async def _enrich_user(user: User, db: AsyncSession) -> UserWithStatsResponse:
         role=user.role.value,
         avatar=user.avatar,
         is_active=user.is_active,
+        can_create_case=user.can_create_case,
+        can_delete_case=user.can_delete_case,
         created_at=user.created_at,
         last_record_date=last_record_date,
         record_count=record_count,
