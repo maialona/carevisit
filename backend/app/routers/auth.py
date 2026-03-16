@@ -47,7 +47,7 @@ async def login(body: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
-async def refresh(body: RefreshRequest):
+async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     payload = decode_token(body.refresh_token)
 
     if payload is None or payload.get("type") != "refresh":
@@ -64,8 +64,6 @@ async def refresh(body: RefreshRequest):
         )
 
     import uuid
-    from sqlalchemy import select
-    from app.models.models import User
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
 
