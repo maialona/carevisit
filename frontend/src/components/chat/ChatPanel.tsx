@@ -271,7 +271,7 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
             onClick={() => setShowTips((v) => !v)}
             className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
               showTips
-                ? "bg-primary-100 text-primary-600"
+                ? "bg-gray-900 text-primary-500"
                 : "text-gray-400 hover:bg-surface-100 hover:text-gray-700"
             }`}
             title="使用說明"
