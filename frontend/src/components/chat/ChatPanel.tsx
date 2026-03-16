@@ -11,7 +11,36 @@ import {
   Trash2,
   X,
   PanelRightClose,
+  Lightbulb,
+  ChevronRight,
 } from "lucide-react";
+
+const TIPS = [
+  {
+    category: "查詢個案",
+    items: [
+      { label: "查個案資料", prompt: "幫我查陳大明的個案資料" },
+      { label: "逾期個案清單", prompt: "列出所有逾期的個案" },
+      { label: "順路家訪建議", prompt: "我今天要去家訪王小明，還能順便拜訪誰？" },
+    ],
+  },
+  {
+    category: "訪視紀錄",
+    items: [
+      { label: "建立訪視紀錄", prompt: "我要建立一筆家訪紀錄" },
+      { label: "查看草稿紀錄", prompt: "目前有哪些紀錄還是草稿狀態？" },
+      { label: "本月訪視統計", prompt: "請給我本月的家訪和電訪統計數字" },
+    ],
+  },
+  {
+    category: "排程管理",
+    items: [
+      { label: "今日訪視行程", prompt: "今天有哪些個案需要訪視？" },
+      { label: "本月排程總覽", prompt: "幫我看本月的訪視排程" },
+      { label: "機構總覽快照", prompt: "幫我看全機構快照" },
+    ],
+  },
+];
 
 interface Message {
   role: "user" | "assistant";
@@ -76,6 +105,7 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
   const [streamingFnCalls, setStreamingFnCalls] = useState<FunctionCallDisplay[]>([]);
   const [aiContext, setAiContext] = useState<AiContext | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [showTips, setShowTips] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -238,6 +268,17 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
         </div>
         <div className="flex items-center gap-1">
           <button
+            onClick={() => setShowTips((v) => !v)}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+              showTips
+                ? "bg-primary-100 text-primary-600"
+                : "text-gray-400 hover:bg-surface-100 hover:text-gray-700"
+            }`}
+            title="使用說明"
+          >
+            <Lightbulb className="h-4 w-4" />
+          </button>
+          <button
             onClick={handleClear}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
             title="清除對話"
@@ -254,6 +295,38 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* Tips panel */}
+      {showTips && (
+        <div className="shrink-0 overflow-y-auto border-b border-gray-100 bg-surface-50 px-4 py-3 max-h-64">
+          <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            AI 使用說明
+          </p>
+          <div className="space-y-3">
+            {TIPS.map((group) => (
+              <div key={group.category}>
+                <p className="mb-1 text-[11px] font-semibold text-gray-500">{group.category}</p>
+                <div className="space-y-1">
+                  {group.items.map((tip) => (
+                    <button
+                      key={tip.label}
+                      onClick={() => {
+                        setShowTips(false);
+                        sendMessage(tip.prompt);
+                      }}
+                      disabled={sending}
+                      className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-medium text-gray-700 transition-all hover:border-gray-900 hover:bg-gray-900 hover:text-white disabled:opacity-50"
+                    >
+                      <span>{tip.label}</span>
+                      <ChevronRight className="h-3 w-3 shrink-0 opacity-50" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
