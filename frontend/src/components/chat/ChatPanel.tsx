@@ -75,6 +75,7 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingFnCalls, setStreamingFnCalls] = useState<FunctionCallDisplay[]>([]);
   const [aiContext, setAiContext] = useState<AiContext | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +87,26 @@ export default function ChatPanel({ open, onClose }: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
+
+  // Load chat history from backend on first mount if session exists
+  useEffect(() => {
+    const storedSession = localStorage.getItem("carevisit_chat_session");
+    if (!storedSession || historyLoaded) return;
+    setHistoryLoaded(true);
+    api.get<{ messages: { role: "user" | "assistant"; content: string }[] }>(
+      `/ai/chat/history?session_id=${storedSession}`
+    )
+      .then((r) => {
+        if (r.data.messages.length > 0) {
+          setMessages([WELCOME_MESSAGE, ...r.data.messages]);
+        }
+      })
+      .catch(() => {
+        // Session may have expired — clear it
+        localStorage.removeItem("carevisit_chat_session");
+        setSessionId(null);
+      });
+  }, [historyLoaded]);
 
   // Focus input when panel opens + fetch context for dynamic prompts
   useEffect(() => {

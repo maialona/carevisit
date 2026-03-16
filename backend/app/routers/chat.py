@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
@@ -1845,6 +1845,39 @@ async def get_ai_context(
         "overdue_count": overdue_count,
         "due_soon_count": due_soon_count,
     }
+
+
+# ---------- Chat history endpoint ----------
+
+@router.get("/chat/history")
+async def get_chat_history(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return user/assistant messages for a session (for restoring chat on refresh)."""
+    try:
+        sid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+
+    sr = await db.execute(
+        select(ChatSession).where(
+            ChatSession.id == sid,
+            ChatSession.user_id == current_user.id,
+        )
+    )
+    session = sr.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Filter to user/assistant messages with plain string content only
+    messages = [
+        {"role": m["role"], "content": m["content"]}
+        for m in (session.messages or [])
+        if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)
+    ]
+    return {"messages": messages}
 
 
 # ---------- Chat endpoint ----------
