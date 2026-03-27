@@ -29,6 +29,7 @@ const WELCOME_MESSAGE: Message = {
 export default function ChatPage() {
   const { showToast } = useToast();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
 
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
@@ -64,17 +65,25 @@ export default function ChatPage() {
       setStreamingFnCalls([]);
 
       try {
-        const response = await fetch(`${API_URL}/ai/chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            message: text,
-            session_id: sessionId,
-          }),
-        });
+        const makeChatRequest = (token: string | null) =>
+          fetch(`${API_URL}/ai/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              message: text,
+              session_id: sessionId,
+            }),
+          });
+
+        let response = await makeChatRequest(accessToken);
+
+        if (response.status === 401) {
+          await refreshToken();
+          response = await makeChatRequest(localStorage.getItem("access_token"));
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -144,7 +153,7 @@ export default function ChatPage() {
         setSending(false);
       }
     },
-    [accessToken, sessionId, sending, showToast],
+    [accessToken, sessionId, sending, showToast, refreshToken],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

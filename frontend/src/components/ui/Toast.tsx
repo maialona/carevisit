@@ -11,21 +11,17 @@ export default function ToastContainer() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-medium shadow-modal animate-slide-up ${
-            t.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
+          className="pointer-events-auto flex items-center gap-3 rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium shadow-lg animate-slide-up min-w-[220px] max-w-sm"
         >
           {t.type === "success" ? (
-            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+            <CheckCircle className="h-4 w-4 text-primary-500 shrink-0" />
           ) : (
-            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
           )}
-          <span>{t.message}</span>
+          <span className="flex-1 text-white">{t.message}</span>
           <button
             onClick={() => removeToast(t.id)}
-            className="ml-1 opacity-50 hover:opacity-100 transition-opacity"
+            className="ml-1 text-gray-500 hover:text-gray-300 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>

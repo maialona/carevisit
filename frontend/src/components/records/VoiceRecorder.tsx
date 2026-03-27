@@ -48,7 +48,7 @@ export default function VoiceRecorder({ onTranscribed }: VoiceRecorderProps) {
         setAudioUrl(URL.createObjectURL(blob));
       };
 
-      recorder.start(1000);
+      recorder.start();
       recorderRef.current = recorder;
       setRecording(true);
       setElapsed(0);
