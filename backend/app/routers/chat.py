@@ -375,6 +375,27 @@ AGENT_FUNCTIONS = [
             },
         },
     },
+    {
+        "name": "list_cases_without_records",
+        "description": "列出指定地區、指定月份中尚未建立任何家電訪紀錄的個案名單。適用於「哪些個案這個月還沒有紀錄」、「X 月 Y 區尚未有紀錄的名單」等問題。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "district": {
+                    "type": "string",
+                    "description": "依地區篩選，例如：北區、中西區（留空則查全機構）",
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "查詢年份，不填則為今年",
+                },
+                "month": {
+                    "type": "integer",
+                    "description": "查詢月份（1-12），不填則為本月",
+                },
+            },
+        },
+    },
 ]
 
 
@@ -1773,6 +1794,66 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
     return "\n".join(lines)
 
 
+async def _exec_list_cases_without_records(args: dict, current_user: User, db: AsyncSession) -> str:
+    district = args.get("district", "")
+    today = date.today()
+    year = args.get("year", today.year)
+    month = args.get("month", today.month)
+
+    month_start = datetime(year, month, 1, tzinfo=timezone.utc)
+    if month == 12:
+        month_end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        month_end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+
+    # Get all cases (optionally filtered by district)
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+    if district:
+        q = q.where(CaseProfile.district == district)
+
+    result = await db.execute(q)
+    all_cases = result.scalars().all()
+
+    if not all_cases:
+        district_note = f"「{district}」" if district else ""
+        return f"找不到{district_note}的個案資料。"
+
+    # Find case_profile_ids that HAVE at least one visit record in the given month
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+    has_record_q = select(VisitRecord.case_profile_id).where(
+        VisitRecord.user_id.in_(org_user_ids),
+        VisitRecord.case_profile_id.isnot(None),
+        VisitRecord.visit_date >= month_start,
+        VisitRecord.visit_date < month_end,
+    ).distinct()
+    has_record_result = await db.execute(has_record_q)
+    has_record_ids = {row[0] for row in has_record_result.all()}
+
+    # Cases without any record in the month
+    missing = [c for c in all_cases if c.id not in has_record_ids]
+
+    district_note = f"「{district}」" if district else ""
+    period_label = f"{year} 年 {month} 月"
+
+    if not missing:
+        return f"{period_label}{district_note}的個案訪視紀錄已全部建立，共 {len(all_cases)} 位個案皆有紀錄。"
+
+    lines = []
+    for c in missing:
+        parts = [f"**{c.name}**（{c.id_number}）"]
+        if c.supervisor:
+            parts.append(f"督導：{c.supervisor}")
+        if c.service_status:
+            parts.append(c.service_status)
+        lines.append("、".join(parts))
+
+    return (
+        f"{period_label}{district_note}尚未建立訪視紀錄的個案，共 {len(missing)}/{len(all_cases)} 位：\n"
+        + "\n".join(f"- {l}" for l in lines)
+    )
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -1795,6 +1876,7 @@ FUNCTION_MAP = {
     "update_case_profile": _exec_update_case_profile,
     "get_schedule_suggestions": _exec_get_schedule_suggestions,
     "get_same_district_cases": _exec_get_same_district_cases,
+    "list_cases_without_records": _exec_list_cases_without_records,
 }
 
 
