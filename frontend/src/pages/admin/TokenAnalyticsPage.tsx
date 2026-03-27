@@ -166,10 +166,10 @@ export default function TokenAnalyticsPage() {
                   <Line
                     type="monotone"
                     dataKey="total_tokens"
-                    stroke="#6366f1"
+                    stroke="#D4FF00"
                     strokeWidth={2}
-                    dot={range === 1 ? { r: 3 } : false}
-                    activeDot={{ r: 4 }}
+                    dot={range === 1 ? { r: 3, fill: "#D4FF00" } : false}
+                    activeDot={{ r: 4, fill: "#D4FF00" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -213,7 +213,7 @@ export default function TokenAnalyticsPage() {
                       fontSize: "12px",
                     }}
                   />
-                  <Bar dataKey="total_tokens" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total_tokens" fill="#D4FF00" radius={[4, 4, 0, 0]} maxBarSize={48} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
