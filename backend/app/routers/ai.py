@@ -548,3 +548,73 @@ async def refine_section(
     tokens_used = response.usage.total_tokens if response.usage else 0
 
     return RefineSectionResponse(refined_html=result, tokens_used=tokens_used)
+
+
+# ---------- refine-section-stream (SSE) ----------
+
+@router.post("/refine-section-stream")
+async def refine_section_stream(
+    body: RefineSectionRequest,
+    request: Request,
+    _current_user: User = Depends(get_current_user),
+):
+    if not body.section_html.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="請提供需要潤飾的段落",
+        )
+
+    fmt_hint = "條列式（使用 <ul><li>）" if body.format == "bullet" else "敘述式（使用 <p>）"
+    tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
+    visit_label = "家訪" if body.visit_type == "home" else "電訪"
+    base_section = SECTION_APPEND_SYSTEM if body.mode == "append" else SECTION_SYSTEM
+    section_system = f"{base_section}\n\n語氣風格要求：{tone_hint}"
+    if body.custom_prompt:
+        section_system += f"\n\n**最高優先指令（覆蓋以上所有語氣風格要求）：{body.custom_prompt}**"
+
+    user_content = f"格式要求：{fmt_hint}\n\n以下是需要重新潤飾的{visit_label}紀錄段落：\n\n{body.section_html}"
+    if body.context:
+        user_content += f"\n\n以下是完整粗稿供參考上下文（不要潤飾這部分）：\n\n{body.context}"
+
+    async def event_generator():
+        client = _get_client()
+        collected = ""
+        tokens_used = 0
+        try:
+            stream = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": section_system},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=2000,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            async for chunk in stream:
+                if await request.is_disconnected():
+                    return
+
+                if chunk.usage:
+                    tokens_used = chunk.usage.total_tokens
+
+                if chunk.choices and chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
+                    collected += text
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': text}, ensure_ascii=False)}\n\n"
+
+            final_html = _strip_code_fences(collected)
+            yield f"data: {json.dumps({'type': 'done', 'content': final_html, 'tokens_used': tokens_used}, ensure_ascii=False)}\n\n"
+
+        except openai.APIError as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'OpenAI 錯誤：{str(e)}'}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

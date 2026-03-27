@@ -51,6 +51,7 @@ export default function SectionRefiner({
   const [refiningId, setRefiningId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sectionPrompt, setSectionPrompt] = useState("");
+  const [streamingAppend, setStreamingAppend] = useState<{ id: number; html: string } | null>(null);
   const sectionsRef = useRef<Section[]>([]);
 
   const sections = useMemo(() => {
@@ -95,16 +96,17 @@ export default function SectionRefiner({
   );
 
   const handleAppendSection = useCallback(
-    async (section: Section, extraPrompt?: string) => {
+    (section: Section, extraPrompt?: string) => {
       if (refiningId !== null) return;
       setRefiningId(section.id);
+      setStreamingAppend({ id: section.id, html: "" });
       setExpandedId(null);
       setSectionPrompt("");
 
       const combinedPrompt = [customPrompt, extraPrompt].filter(Boolean).join("；") || undefined;
 
-      try {
-        const result = await aiApi.refineSection({
+      aiApi.refineSectionStream(
+        {
           section_html: section.html,
           context: rawInput,
           format: outputFormat,
@@ -112,20 +114,28 @@ export default function SectionRefiner({
           tone,
           mode: "append",
           ...(combinedPrompt && { custom_prompt: combinedPrompt }),
-        });
-
-        const current = sectionsRef.current;
-        const newSections = current.map((s) =>
-          s.id === section.id ? { ...s, html: s.html + "\n" + result.refined_html } : s,
-        );
-        const newHtml = newSections.map((s) => s.html).join("\n");
-        onUpdate(newHtml);
-        onToast(`段落補充完成（${result.tokens_used} tokens）`);
-      } catch {
-        onToast("段落補充失敗，請重試", "error");
-      } finally {
-        setRefiningId(null);
-      }
+        },
+        (chunk) => {
+          setStreamingAppend((prev) =>
+            prev ? { ...prev, html: prev.html + chunk } : { id: section.id, html: chunk },
+          );
+        },
+        (fullHtml, tokensUsed) => {
+          const current = sectionsRef.current;
+          const newSections = current.map((s) =>
+            s.id === section.id ? { ...s, html: s.html + "\n" + fullHtml } : s,
+          );
+          onUpdate(newSections.map((s) => s.html).join("\n"));
+          onToast(`段落補充完成（${tokensUsed} tokens）`);
+          setStreamingAppend(null);
+          setRefiningId(null);
+        },
+        () => {
+          onToast("段落補充失敗，請重試", "error");
+          setStreamingAppend(null);
+          setRefiningId(null);
+        },
+      );
     },
     [refiningId, rawInput, outputFormat, visitType, tone, customPrompt, onUpdate, onToast],
   );
@@ -251,7 +261,12 @@ export default function SectionRefiner({
                     ? "hover:bg-surface-50"
                     : ""
               }`}
-              dangerouslySetInnerHTML={{ __html: section.html }}
+              dangerouslySetInnerHTML={{
+                __html:
+                  streamingAppend?.id === section.id
+                    ? section.html + "\n" + streamingAppend.html
+                    : section.html,
+              }}
             />
           </div>
         );
