@@ -14,6 +14,7 @@ import {
   FolderOpen,
   CalendarCheck,
   History,
+  BarChart2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -157,6 +158,13 @@ export default function Layout() {
                 <p className="truncate text-sm font-bold text-gray-900">{user.name}</p>
                 <p className="text-xs font-medium text-gray-500">{user.role === "admin" ? "管理員" : "督導員"}</p>
               </div>
+              <button
+                onClick={() => navigate("/admin/token-analytics")}
+                title="Token 用量分析"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-surface-100 hover:text-gray-700 transition-colors"
+              >
+                <BarChart2 className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => navigate("/admin/audit")}
                 title="操作記錄"
