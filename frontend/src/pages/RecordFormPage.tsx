@@ -32,6 +32,8 @@ import {
   Columns2,
   PenLine,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import type { CaseProfile, GapItem, ToneStyle, VisitRecord } from "../types";
 
@@ -80,7 +82,7 @@ export default function RecordFormPage() {
 
   // Step 3
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(
-    "bullet",
+    "narrative",
   );
   const [tone, setTone] = useState<ToneStyle>(() => {
     return (localStorage.getItem("carevisit_tone") as ToneStyle) || "professional";
@@ -91,10 +93,10 @@ export default function RecordFormPage() {
   const [refinedContent, setRefinedContent] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const streamControllerRef = useRef<AbortController | null>(null);
   const [copied, setCopied] = useState(false);
-  const [showFormatConfirm, setShowFormatConfirm] = useState(false);
-  const pendingFormatRef = useRef<OutputFormat | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // View mode: "edit" = RichEditor, "diff" = diff comparison, "section" = paragraph-level refine
@@ -209,6 +211,7 @@ export default function RecordFormPage() {
         visit_type: visitType,
         tone,
         record_id: id,
+        ...(customPrompt.trim() && { custom_prompt: customPrompt.trim() }),
       },
       // onChunk
       (text) => {
@@ -232,7 +235,7 @@ export default function RecordFormPage() {
     );
 
     streamControllerRef.current = controller;
-  }, [rawInput, outputFormat, visitType, tone, id, refining, showToast]);
+  }, [rawInput, outputFormat, visitType, tone, id, refining, showToast, customPrompt]);
 
   // Auto-refine on blur + check gaps with debounce
   const handleRawBlur = useCallback(() => {
@@ -246,27 +249,6 @@ export default function RecordFormPage() {
     }, 500);
   }, [autoRefine, rawInput, doRefine, doCheckGaps]);
 
-  // Format switch with confirmation
-  const handleFormatSwitch = (fmt: OutputFormat) => {
-    if (fmt === outputFormat) return;
-    if (refinedContent.trim()) {
-      pendingFormatRef.current = fmt;
-      setShowFormatConfirm(true);
-    } else {
-      setOutputFormat(fmt);
-    }
-  };
-
-  const confirmFormatSwitch = () => {
-    const nextFmt = pendingFormatRef.current;
-    if (nextFmt) {
-      setOutputFormat(nextFmt);
-      pendingFormatRef.current = null;
-      setShowFormatConfirm(false);
-      // Pass the new format directly because outputFormat in this closure is still the old one
-      setTimeout(() => doRefine(nextFmt), 50);
-    }
-  };
 
   // --- Save ---
   const save = useCallback(
@@ -627,25 +609,6 @@ export default function RecordFormPage() {
 
         {/* Settings row — compact, secondary visual weight */}
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          {/* Format toggle */}
-          <div className="inline-flex rounded-lg border border-gray-200 bg-surface-50 p-0.5">
-            {(["bullet", "narrative"] as const).map((fmt) => (
-              <button
-                key={fmt}
-                type="button"
-                onClick={() => handleFormatSwitch(fmt)}
-                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
-                  outputFormat === fmt
-                    ? "bg-gray-900 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-900"
-                }`}
-              >
-                {fmt === "bullet" ? "條列式" : "敘述式"}
-              </button>
-            ))}
-          </div>
-
-          <div className="hidden sm:block h-5 w-px bg-gray-200" />
 
           {/* Tone selector */}
           <div className="inline-flex rounded-lg border border-gray-200 bg-surface-50 p-0.5">
@@ -691,7 +654,32 @@ export default function RecordFormPage() {
               />
             </button>
           </label>
+
+          <div className="hidden sm:block h-5 w-px bg-gray-200" />
+
+          {/* Custom prompt toggle */}
+          <button
+            type="button"
+            onClick={() => setShowCustomPrompt(!showCustomPrompt)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            自訂指令
+            {showCustomPrompt ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
         </div>
+
+        {/* Custom prompt input */}
+        {showCustomPrompt && (
+          <div className="mt-2">
+            <input
+              type="text"
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="例如：多描述個案的情緒狀態、著重照顧者的負荷情形..."
+              className="w-full rounded-lg border border-gray-200 bg-surface-50 px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+        )}
 
         {/* Content panel with integrated view tabs */}
         <div className="mt-4 rounded-xl border border-gray-200 overflow-hidden">
@@ -752,6 +740,7 @@ export default function RecordFormPage() {
                 outputFormat={outputFormat}
                 visitType={visitType}
                 tone={tone}
+                customPrompt={customPrompt || undefined}
                 onUpdate={setRefinedContent}
                 onToast={showToast}
               />
@@ -815,17 +804,6 @@ export default function RecordFormPage() {
         {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+S 儲存草稿 ｜ {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+Enter 完成 ｜ {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘" : "Ctrl"}+Shift+C 複製內容
       </div>
 
-      <ConfirmModal
-        open={showFormatConfirm}
-        title="切換格式"
-        message="切換格式將重新進行 AI 潤飾，目前的潤飾內容將被覆蓋，確定嗎？"
-        confirmLabel="確認切換"
-        onConfirm={confirmFormatSwitch}
-        onCancel={() => {
-          setShowFormatConfirm(false);
-          pendingFormatRef.current = null;
-        }}
-      />
 
       <ConfirmModal
         open={showDeleteConfirm}

@@ -175,6 +175,7 @@ class RefineRequest(BaseModel):
     visit_type: Literal["home", "phone"]
     tone: Literal["professional", "warm", "concise", "detailed"] = "professional"
     record_id: Optional[uuid.UUID] = None
+    custom_prompt: Optional[str] = None
 
 
 class RefineResponse(BaseModel):
@@ -188,6 +189,8 @@ class RefineSectionRequest(BaseModel):
     format: Literal["bullet", "narrative"]
     visit_type: Literal["home", "phone"]
     tone: Literal["professional", "warm", "concise", "detailed"] = "professional"
+    custom_prompt: Optional[str] = None
+    mode: str = "replace"  # "replace" | "append"
 
 
 class RefineSectionResponse(BaseModel):

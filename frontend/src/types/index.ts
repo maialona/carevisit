@@ -254,6 +254,7 @@ export interface RefineParams {
   visit_type: "home" | "phone";
   tone?: ToneStyle;
   record_id?: string;
+  custom_prompt?: string;
 }
 
 export interface RefineResult {
@@ -285,6 +286,8 @@ export interface RefineSectionParams {
   format: "bullet" | "narrative";
   visit_type: "home" | "phone";
   tone?: ToneStyle;
+  custom_prompt?: string;
+  mode?: "replace" | "append";
 }
 
 export interface RefineSectionResult {

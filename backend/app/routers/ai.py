@@ -121,7 +121,21 @@ TONE_INSTRUCTIONS = {
     "professional": "語氣正式專業，用詞精確。",
     "warm": "語氣溫暖關懷，展現同理心，適度使用較柔和的表達方式。",
     "concise": "語氣簡潔扼要，去除冗詞贅字，每句話都直指重點。",
-    "detailed": "語氣詳盡完整，盡量補充觀察細節與具體描述，讓紀錄內容更加豐富。",
+    "detailed": (
+        "語氣詳盡完整。請務必：\n"
+        "- 針對每個項目提供具體的觀察描述，包括時間、地點、人物、行為等細節\n"
+        "- 將粗稿中簡短的描述擴充為完整的句子或段落\n"
+        "- 補充合理的專業觀察細節（例如個案的表情、語氣、互動情形等）\n"
+        "- 每個子項目至少寫 2-3 句以上的描述\n"
+        "- 不要使用「無特殊狀況」帶過，盡量從粗稿中挖掘可描述的內容"
+    ),
+}
+
+TONE_MAX_TOKENS = {
+    "professional": 2000,
+    "warm": 2000,
+    "concise": 1500,
+    "detailed": 3500,
 }
 
 OCR_SYSTEM = (
@@ -242,9 +256,16 @@ async def refine(
         base_prompt = PHONE_BULLET_SYSTEM if body.format == "bullet" else PHONE_NARRATIVE_SYSTEM
     else:
         base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    if body.tone == "detailed":
+        base_prompt = base_prompt.replace("語氣專業簡潔", "語氣專業詳盡")
+        base_prompt = base_prompt.replace("語氣正式專業", "語氣正式詳盡")
     tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
+    if body.custom_prompt:
+        system_prompt += f"\n\n**最高優先指令（覆蓋以上所有語氣風格要求）：{body.custom_prompt}**"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
+    max_tokens = TONE_MAX_TOKENS.get(body.tone, 2000)
+    user_message = f"以下是{visit_label}粗稿：\n\n{body.text}"
 
     client = _get_client()
     try:
@@ -252,9 +273,9 @@ async def refine(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"以下是{visit_label}粗稿：\n\n{body.text}"},
+                {"role": "user", "content": user_message},
             ],
-            max_tokens=2000,
+            max_tokens=max_tokens,
         )
     except openai.APIError as e:
         raise HTTPException(
@@ -312,9 +333,16 @@ async def refine_stream(
         base_prompt = PHONE_BULLET_SYSTEM if body.format == "bullet" else PHONE_NARRATIVE_SYSTEM
     else:
         base_prompt = BULLET_SYSTEM if body.format == "bullet" else NARRATIVE_SYSTEM
+    if body.tone == "detailed":
+        base_prompt = base_prompt.replace("語氣專業簡潔", "語氣專業詳盡")
+        base_prompt = base_prompt.replace("語氣正式專業", "語氣正式詳盡")
     tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     system_prompt = f"{base_prompt}\n\n語氣風格要求：{tone_hint}"
+    if body.custom_prompt:
+        system_prompt += f"\n\n**最高優先指令（覆蓋以上所有語氣風格要求）：{body.custom_prompt}**"
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
+    max_tokens = TONE_MAX_TOKENS.get(body.tone, 2000)
+    user_message = f"以下是{visit_label}粗稿：\n\n{body.text}"
 
     async def event_generator():
         client = _get_client()
@@ -325,9 +353,9 @@ async def refine_stream(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"以下是{visit_label}粗稿：\n\n{body.text}"},
+                    {"role": "user", "content": user_message},
                 ],
-                max_tokens=2000,
+                max_tokens=max_tokens,
                 stream=True,
                 stream_options={"include_usage": True},
             )
@@ -464,6 +492,15 @@ SECTION_SYSTEM = (
     "4. 可以適度補充細節或改善語句流暢度，但不要改變原意\n"
 )
 
+SECTION_APPEND_SYSTEM = (
+    "你是長照督導員的文書助理。請針對以下段落，生成新的補充內容。\n\n"
+    "重要規則：\n"
+    "1. 只輸出新增的補充內容，不要重複或輸出原有內容\n"
+    "2. 補充內容需與原有內容自然銜接、不重複\n"
+    "3. 保持相同的 HTML 格式（<p> 或 <li> 標籤），不要輸出 <h4>/<h5> 標題標籤\n"
+    "4. 不要輸出 markdown，直接輸出 HTML\n"
+)
+
 
 @router.post("/refine-section", response_model=RefineSectionResponse)
 async def refine_section(
@@ -479,7 +516,10 @@ async def refine_section(
     fmt_hint = "條列式（使用 <ul><li>）" if body.format == "bullet" else "敘述式（使用 <p>）"
     tone_hint = TONE_INSTRUCTIONS.get(body.tone, TONE_INSTRUCTIONS["professional"])
     visit_label = "家訪" if body.visit_type == "home" else "電訪"
-    section_system = f"{SECTION_SYSTEM}\n\n語氣風格要求：{tone_hint}"
+    base_section = SECTION_APPEND_SYSTEM if body.mode == "append" else SECTION_SYSTEM
+    section_system = f"{base_section}\n\n語氣風格要求：{tone_hint}"
+    if body.custom_prompt:
+        section_system += f"\n\n**最高優先指令（覆蓋以上所有語氣風格要求）：{body.custom_prompt}**"
 
     user_content = f"格式要求：{fmt_hint}\n\n以下是需要重新潤飾的{visit_label}紀錄段落：\n\n{body.section_html}"
     if body.context:
@@ -493,7 +533,7 @@ async def refine_section(
                 {"role": "system", "content": section_system},
                 {"role": "user", "content": user_content},
             ],
-            max_tokens=1000,
+            max_tokens=2000,
         )
     except openai.APIError as e:
         raise HTTPException(
