@@ -206,6 +206,16 @@ class RouteAgent:
     # Tools
     # ──────────────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _build_address(case: CaseProfile) -> str:
+        """Combine district + road + address into a full geocodable string."""
+        parts = [
+            (case.district or "").strip(),
+            (case.road or "").strip(),
+            (case.address or "").strip(),
+        ]
+        return "".join(parts)
+
     async def _fetch_cases(self, state: dict) -> None:
         q = select(CaseProfile).where(CaseProfile.org_id == self.user.org_id)
         if self.user.role != UserRole.admin:
@@ -226,7 +236,7 @@ class RouteAgent:
                 target.append({
                     "case_id": str(case.id),
                     "name": case.name,
-                    "address": (case.address or "").strip(),
+                    "address": self._build_address(case),
                     "district": case.district or "",
                     "phone": case.phone or "",
                     "compliance": overall.value,
@@ -249,10 +259,10 @@ class RouteAgent:
             {
                 "case_id": str(c.id),
                 "name": c.name,
-                "address": (c.address or "").strip(),
+                "address": self._build_address(c),
                 "district": c.district or "",
                 "phone": c.phone or "",
-                "compliance": "overdue",  # no compliance context in manual mode
+                "compliance": "overdue",
             }
             for c in cases
         ]
