@@ -376,6 +376,19 @@ AGENT_FUNCTIONS = [
         },
     },
     {
+        "name": "list_phone_only_cases",
+        "description": "找出連續 N 個月內只有電訪紀錄、沒有家訪紀錄的個案。適用於「連續三個月都是電訪的個案」、「好幾個月沒有家訪的個案」等問題。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "months": {
+                    "type": "integer",
+                    "description": "連續月份數，預設為 3",
+                },
+            },
+        },
+    },
+    {
         "name": "list_cases_without_records",
         "description": "列出指定地區、指定月份中尚未建立任何家電訪紀錄的個案名單。適用於「哪些個案這個月還沒有紀錄」、「X 月 Y 區尚未有紀錄的名單」等問題。",
         "parameters": {
@@ -1794,6 +1807,92 @@ async def _exec_get_same_district_cases(args: dict, current_user: User, db: Asyn
     return "\n".join(lines)
 
 
+async def _exec_list_phone_only_cases(args: dict, current_user: User, db: AsyncSession) -> str:
+    months = max(1, min(args.get("months", 3), 12))
+    today = date.today()
+
+    # Build list of (year, month) for the past N months (including current month)
+    target_months = []
+    for i in range(months - 1, -1, -1):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        target_months.append((y, m))
+
+    # Fetch all cases in org
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+    result = await db.execute(q)
+    all_cases = result.scalars().all()
+
+    if not all_cases:
+        return "目前沒有個案資料。"
+
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+
+    # For each target month, get the set of case_profile_ids that have home visits
+    home_visit_case_ids: set = set()
+    # And the set that have ANY visit (phone or home)
+    any_visit_per_month: list[set] = []
+
+    for y, m in target_months:
+        month_start = datetime(y, m, 1, tzinfo=timezone.utc)
+        if m == 12:
+            month_end = datetime(y + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            month_end = datetime(y, m + 1, 1, tzinfo=timezone.utc)
+
+        # Cases with a home visit this month
+        home_q = select(VisitRecord.case_profile_id).where(
+            VisitRecord.user_id.in_(org_user_ids),
+            VisitRecord.case_profile_id.isnot(None),
+            VisitRecord.visit_date >= month_start,
+            VisitRecord.visit_date < month_end,
+            VisitRecord.visit_type == VisitType.home,
+        ).distinct()
+        home_ids = {row[0] for row in (await db.execute(home_q)).all()}
+        home_visit_case_ids |= home_ids
+
+        # Cases with any visit this month
+        any_q = select(VisitRecord.case_profile_id).where(
+            VisitRecord.user_id.in_(org_user_ids),
+            VisitRecord.case_profile_id.isnot(None),
+            VisitRecord.visit_date >= month_start,
+            VisitRecord.visit_date < month_end,
+        ).distinct()
+        any_ids = {row[0] for row in (await db.execute(any_q)).all()}
+        any_visit_per_month.append(any_ids)
+
+    # Cases that have visits in ALL N months AND no home visit in any of those months
+    cases_in_all_months = any_visit_per_month[0]
+    for s in any_visit_per_month[1:]:
+        cases_in_all_months = cases_in_all_months & s
+
+    phone_only_ids = cases_in_all_months - home_visit_case_ids
+    phone_only_cases = [c for c in all_cases if c.id in phone_only_ids]
+
+    period_label = f"{target_months[0][0]}/{target_months[0][1]:02d}～{target_months[-1][0]}/{target_months[-1][1]:02d}"
+
+    if not phone_only_cases:
+        return f"過去 {months} 個月（{period_label}）沒有個案連續只有電訪紀錄。"
+
+    lines = []
+    for c in phone_only_cases:
+        parts = [f"**{c.name}**（{c.id_number}）"]
+        if c.district:
+            parts.append(c.district)
+        if c.supervisor:
+            parts.append(f"督導：{c.supervisor}")
+        lines.append("、".join(parts))
+
+    return (
+        f"過去 {months} 個月（{period_label}）連續只有電訪、沒有家訪的個案，共 {len(phone_only_cases)} 位：\n"
+        + "\n".join(f"- {l}" for l in lines)
+    )
+
+
 async def _exec_list_cases_without_records(args: dict, current_user: User, db: AsyncSession) -> str:
     district = args.get("district", "")
     today = date.today()
@@ -1876,6 +1975,7 @@ FUNCTION_MAP = {
     "update_case_profile": _exec_update_case_profile,
     "get_schedule_suggestions": _exec_get_schedule_suggestions,
     "get_same_district_cases": _exec_get_same_district_cases,
+    "list_phone_only_cases": _exec_list_phone_only_cases,
     "list_cases_without_records": _exec_list_cases_without_records,
 }
 
