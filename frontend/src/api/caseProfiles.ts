@@ -42,6 +42,6 @@ export const caseProfilesApi = {
   batchDelete: (ids: string[]) =>
     api.delete<{ deleted: number }>("/case-profiles/batch", { data: { ids } }),
 
-  searchNames: (q: string) =>
-    api.get<string[]>("/case-profiles/search", { params: { q } }),
+  searchCases: (q: string) =>
+    api.get<{ id: string; name: string }[]>("/case-profiles/search", { params: { q } }),
 };

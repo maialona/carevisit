@@ -18,6 +18,7 @@ import AuditLogPage from "./pages/admin/AuditLogPage";
 import TokenAnalyticsPage from "./pages/admin/TokenAnalyticsPage";
 import AdminRoute from "./components/AdminRoute";
 import SchedulePage from "./pages/SchedulePage";
+import RoutePlannerPage from "./pages/RoutePlannerPage";
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/clients/detail" element={<ClientDetailPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
+              <Route path="/route-planner" element={<RoutePlannerPage />} />
 
               <Route path="/admin/case-profiles" element={<CaseProfilesPage />} />
               <Route path="/admin/audit" element={<AuditLogPage />} />

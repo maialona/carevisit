@@ -15,6 +15,7 @@ import {
   CalendarCheck,
   History,
   BarChart2,
+  Navigation,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { label: "家電訪紀錄", icon: ClipboardList, to: "/records" },
   { label: "訪視歷程", icon: Users, to: "/clients" },
   { label: "排程管理", icon: CalendarCheck, to: "/schedule" },
+  { label: "路線規劃", icon: Navigation, to: "/route-planner" },
   { label: "個案管理", icon: FolderOpen, to: "/admin/case-profiles" },
   { label: "帳號管理", icon: Settings, to: "/admin/users", adminOnly: true },
 ];

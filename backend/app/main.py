@@ -13,7 +13,7 @@ import app.core.logging as app_logging
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import ai, audit, auth, case_profiles, chat, clients, export, records, users, stats, schedule, token_analytics
+from app.routers import ai, audit, auth, case_profiles, chat, clients, export, records, users, stats, schedule, token_analytics, route_planner
 
 
 @asynccontextmanager
@@ -124,6 +124,7 @@ app.include_router(case_profiles.router, prefix="/api")
 app.include_router(schedule.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(token_analytics.router, prefix="/api")
+app.include_router(route_planner.router, prefix="/api")
 
 
 def decode_bytes(obj):

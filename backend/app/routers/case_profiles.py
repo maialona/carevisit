@@ -48,7 +48,7 @@ COLUMN_MAP = {
 }
 
 
-@router.get("/search", response_model=List[str])
+@router.get("/search")
 async def search_names(
     q: str = Query("", min_length=0),
     db: AsyncSession = Depends(get_db),
@@ -57,13 +57,13 @@ async def search_names(
     if not q:
         return []
     result = await db.execute(
-        select(CaseProfile.name)
+        select(CaseProfile.id, CaseProfile.name)
         .where(CaseProfile.org_id == current_user.org_id)
         .where(CaseProfile.name.ilike(f"%{q}%"))
         .order_by(CaseProfile.name)
         .limit(10)
     )
-    return result.scalars().all()
+    return [{"id": str(row.id), "name": row.name} for row in result.all()]
 
 
 @router.get("", response_model=PaginatedResponse[CaseProfileOut])

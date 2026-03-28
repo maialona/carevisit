@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -405,6 +406,55 @@ AGENT_FUNCTIONS = [
                 "month": {
                     "type": "integer",
                     "description": "查詢月份（1-12），不填則為本月",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_cases_needing_visit",
+        "description": (
+            "一次查出所有需要安排訪視的個案：逾期個案、即將到期個案、本月尚無任何紀錄的個案。"
+            "回傳結果含完整地址，可直接傳給 plan_route 做路線規劃。"
+            "適用於「幫我規劃路線」、「哪些人需要訪視」、「本月還沒做的個案」等情境。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "district": {
+                    "type": "string",
+                    "description": "依地區篩選（可選），例如：北區、中西區",
+                },
+                "supervisor": {
+                    "type": "string",
+                    "description": "依督導員姓名篩選（可選，模糊匹配）",
+                },
+            },
+        },
+    },
+    {
+        "name": "plan_route",
+        "description": (
+            "將多個個案地址規劃成最省時的家訪路線順序（呼叫 Google Maps 路線最佳化）。"
+            "輸入地址清單，回傳最佳化後的訪視順序、各段距離與預估時間。"
+            "請先用 get_cases_needing_visit 或其他工具取得個案地址後，再呼叫此工具。"
+        ),
+        "parameters": {
+            "type": "object",
+            "required": ["addresses"],
+            "properties": {
+                "addresses": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "要拜訪的完整地址清單（含縣市區路號）",
+                },
+                "case_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "與 addresses 順序對應的個案姓名清單",
+                },
+                "origin": {
+                    "type": "string",
+                    "description": "出發點地址（可選），不填則以第一個地址為起點",
                 },
             },
         },
@@ -1953,6 +2003,180 @@ async def _exec_list_cases_without_records(args: dict, current_user: User, db: A
     )
 
 
+async def _exec_get_cases_needing_visit(args: dict, current_user: User, db: AsyncSession) -> str:
+    district = args.get("district", "")
+    supervisor = args.get("supervisor", "")
+    today = date.today()
+
+    q = select(CaseProfile)
+    q = _case_filter(q, current_user)
+    if district:
+        q = q.where(CaseProfile.district == district)
+    if supervisor:
+        q = q.where(CaseProfile.supervisor.ilike(f"%{supervisor}%"))
+    q = q.where(CaseProfile.service_status.ilike("%服務中%"))
+
+    result = await db.execute(q)
+    cases = result.scalars().all()
+
+    if not cases:
+        note = f"「{district}」" if district else ""
+        return f"找不到{note}服務中的個案資料。"
+
+    case_ids = [c.id for c in cases]
+    last_visits = await _get_last_visits(db, case_ids)
+
+    month_start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+    if today.month == 12:
+        month_end = datetime(today.year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        month_end = datetime(today.year, today.month + 1, 1, tzinfo=timezone.utc)
+
+    org_user_ids = select(User.id).where(User.org_id == current_user.org_id)
+    has_record_q = select(VisitRecord.case_profile_id).where(
+        VisitRecord.user_id.in_(org_user_ids),
+        VisitRecord.case_profile_id.isnot(None),
+        VisitRecord.visit_date >= month_start,
+        VisitRecord.visit_date < month_end,
+    ).distinct()
+    has_record_ids = {row[0] for row in (await db.execute(has_record_q)).all()}
+
+    lines = []
+    for c in cases:
+        lv = last_visits.get(c.id, {})
+        _, home_detail, overall = compute_compliance(lv.get("phone"), lv.get("home"), today)
+        has_this_month = c.id in has_record_ids
+
+        if overall.value not in ("overdue", "due_soon") and has_this_month:
+            continue
+
+        status_labels = {"overdue": "⚠️逾期", "due_soon": "⏰即將到期", "ok": "✅正常"}
+        compliance_label = status_labels.get(overall.value, overall.value)
+        record_label = "（本月已有紀錄）" if has_this_month else "（本月無紀錄）"
+
+        if home_detail.due_by:
+            days_left = (home_detail.due_by - today).days
+            deadline_str = (
+                f"到期 {home_detail.due_by}（剩 {days_left} 天）"
+                if days_left >= 0
+                else f"已逾期 {-days_left} 天"
+            )
+        else:
+            deadline_str = "無家訪紀錄"
+
+        address = c.address or "地址未填"
+        lines.append(
+            f"- **{c.name}** | {compliance_label}{record_label} | {deadline_str}"
+            f" | 地址：{address} | 地區：{c.district or '未設定'} | 督導：{c.supervisor or '未設定'}"
+        )
+
+    if not lines:
+        return "目前所有服務中個案本月均有訪視紀錄且未逾期，無需特別安排。"
+
+    return (
+        f"需要安排訪視的個案（共 {len(lines)} 位）：\n"
+        + "\n".join(lines)
+        + "\n\n地址資訊已包含，可直接傳給 plan_route 進行路線規劃。"
+    )
+
+
+async def _exec_plan_route(args: dict, current_user: User, db: AsyncSession) -> str:
+    addresses: list[str] = args.get("addresses", [])
+    case_names: list[str] = args.get("case_names", [])
+    origin: str = args.get("origin", "")
+
+    if not addresses:
+        return "請提供至少一個地址。"
+
+    if not settings.GOOGLE_MAPS_API_KEY:
+        lines = [
+            f"{i + 1}. {case_names[i] if i < len(case_names) else f'地點{i + 1}'}：{addr}"
+            for i, addr in enumerate(addresses)
+        ]
+        return (
+            "⚠️ 尚未設定 GOOGLE_MAPS_API_KEY，無法自動優化路線。\n"
+            "以下為原始地址清單，請手動規劃順序：\n" + "\n".join(lines)
+        )
+
+    if len(addresses) == 1:
+        name = case_names[0] if case_names else "地點 1"
+        return f"只有一個地點，無需路線優化：\n1. {name}：{addresses[0]}"
+
+    if origin:
+        route_origin = origin
+        waypoint_addrs = addresses
+        waypoint_names = list(case_names)
+        origin_name = "出發點"
+    else:
+        route_origin = addresses[0]
+        origin_name = case_names[0] if case_names else "出發點"
+        waypoint_addrs = addresses[1:]
+        waypoint_names = list(case_names[1:]) if case_names else []
+
+    destination = waypoint_addrs[-1]
+    dest_name = waypoint_names[-1] if waypoint_names else "終點"
+    middle_addrs = waypoint_addrs[:-1]
+    middle_names = waypoint_names[:-1]
+
+    params: dict[str, str] = {
+        "origin": route_origin,
+        "destination": destination,
+        "key": settings.GOOGLE_MAPS_API_KEY,
+        "language": "zh-TW",
+        "region": "tw",
+    }
+    if middle_addrs:
+        params["waypoints"] = "optimize:true|" + "|".join(middle_addrs)
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http:
+            resp = await http.get(
+                "https://maps.googleapis.com/maps/api/directions/json",
+                params=params,
+            )
+        data = resp.json()
+    except Exception as e:
+        return f"無法連線到 Google Maps API：{e}"
+
+    if data.get("status") != "OK":
+        error = data.get("error_message") or data.get("status", "未知錯誤")
+        return f"Google Maps 路線規劃失敗：{error}"
+
+    route = data["routes"][0]
+    waypoint_order: list[int] = route.get("waypoint_order", list(range(len(middle_addrs))))
+    legs = route["legs"]
+
+    optimized_middle_addrs = [middle_addrs[i] for i in waypoint_order]
+    optimized_middle_names = [
+        middle_names[i] if i < len(middle_names) else f"地點{i + 1}"
+        for i in waypoint_order
+    ]
+    all_names = [origin_name] + optimized_middle_names + [dest_name]
+    all_addrs = [route_origin] + optimized_middle_addrs + [destination]
+
+    total_distance = sum(leg["distance"]["value"] for leg in legs)
+    total_duration = sum(leg["duration"]["value"] for leg in legs)
+
+    lines = []
+    for i, (name, addr) in enumerate(zip(all_names, all_addrs)):
+        if i < len(legs):
+            leg = legs[i]
+            lines.append(
+                f"{i + 1}. **{name}**\n"
+                f"   地址：{addr}\n"
+                f"   → 下一站：{leg['distance']['text']}，約 {leg['duration']['text']}"
+            )
+        else:
+            lines.append(f"{i + 1}. **{name}**（終點）\n   地址：{addr}")
+
+    return (
+        f"✅ 路線規劃完成（共 {len(all_names)} 個地點）\n"
+        f"總距離：{total_distance / 1000:.1f} 公里｜預估行程：{total_duration // 60} 分鐘\n\n"
+        + "\n".join(lines)
+        + "\n\n以上為建議順序，確認後請告知是否要寫入排程。"
+    )
+
+
 FUNCTION_MAP = {
     "get_case_records": _exec_get_case_records,
     "get_statistics": _exec_get_statistics,
@@ -1977,6 +2201,8 @@ FUNCTION_MAP = {
     "get_same_district_cases": _exec_get_same_district_cases,
     "list_phone_only_cases": _exec_list_phone_only_cases,
     "list_cases_without_records": _exec_list_cases_without_records,
+    "get_cases_needing_visit": _exec_get_cases_needing_visit,
+    "plan_route": _exec_plan_route,
 }
 
 
@@ -2137,7 +2363,15 @@ async def chat(
         f"4. 請使用者描述訪視內容（若使用者已提供簡短描述，可協助潤飾成完整紀錄）\n"
         f"5. 收集完整後呼叫 create_draft_record（confirm=false）顯示預覽\n"
         f"6. 使用者確認後再呼叫 create_draft_record（confirm=true）寫入系統\n"
-        f"每次只詢問一個尚未提供的欄位，不要一次列出所有問題。"
+        f"每次只詢問一個尚未提供的欄位，不要一次列出所有問題。\n\n"
+        f"【路線規劃流程】\n"
+        f"當使用者說要規劃訪視路線、安排行程時，請依序執行（不需詢問，直接呼叫工具）：\n"
+        f"1. 呼叫 get_cases_needing_visit 取得需要訪視的個案清單（含地址）\n"
+        f"2. 從回傳結果中提取地址與個案姓名清單\n"
+        f"3. 呼叫 plan_route，傳入 addresses 與 case_names\n"
+        f"4. 將規劃結果呈現給使用者確認，詢問是否要寫入排程\n"
+        f"5. 使用者確認後呼叫 set_visit_schedule（confirm=true）逐一寫入\n"
+        f"若使用者指定地區或督導員，請在 get_cases_needing_visit 帶入 district/supervisor 參數。"
     )
 
     # Load history and compress if needed
@@ -2161,55 +2395,70 @@ async def chat(
     async def generate():
         nonlocal history
 
-        # First call — may return function call
+        _tools = [{"type": "function", "function": f} for f in AGENT_FUNCTIONS]
+
+        # First call — may return tool calls
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            functions=AGENT_FUNCTIONS,
-            function_call="auto",
+            tools=_tools,
+            tool_choice="auto",
             stream=False,
         )
 
         choice = response.choices[0]
         msg = choice.message
 
-        # Handle function calls (up to 3 rounds)
+        # Agentic loop — keep going until no more tool calls (up to 10 rounds)
         rounds = 0
         current_messages = list(messages)
-        while msg.function_call and rounds < 3:
-            fn_name = msg.function_call.name
-            try:
-                fn_args = json.loads(msg.function_call.arguments)
-            except json.JSONDecodeError:
-                fn_args = {}
-
-            yield f"data: {json.dumps({'type': 'function_call', 'name': fn_name, 'args': fn_args}, ensure_ascii=False)}\n\n"
-
-            executor = FUNCTION_MAP.get(fn_name)
-            if executor:
-                fn_result = await executor(fn_args, current_user, db)
-            else:
-                fn_result = f"未知的函數：{fn_name}"
-
-            # Send full result to frontend (no truncation)
-            yield f"data: {json.dumps({'type': 'function_result', 'content': fn_result}, ensure_ascii=False)}\n\n"
-
+        while msg.tool_calls and rounds < 10:
+            # Append the full assistant message (with all tool_calls) once
             current_messages.append({
                 "role": "assistant",
-                "content": None,
-                "function_call": {"name": fn_name, "arguments": msg.function_call.arguments},
+                "content": msg.content,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ],
             })
-            current_messages.append({
-                "role": "function",
-                "name": fn_name,
-                "content": fn_result,
-            })
+
+            # Execute every tool call in this round
+            for tool_call in msg.tool_calls:
+                fn_name = tool_call.function.name
+                try:
+                    fn_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    fn_args = {}
+
+                yield f"data: {json.dumps({'type': 'function_call', 'name': fn_name, 'args': fn_args}, ensure_ascii=False)}\n\n"
+
+                executor = FUNCTION_MAP.get(fn_name)
+                if executor:
+                    fn_result = await executor(fn_args, current_user, db)
+                else:
+                    fn_result = f"未知的函數：{fn_name}"
+
+                yield f"data: {json.dumps({'type': 'function_result', 'content': fn_result}, ensure_ascii=False)}\n\n"
+
+                current_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": fn_result,
+                })
 
             response = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=current_messages,
-                functions=AGENT_FUNCTIONS,
-                function_call="auto",
+                tools=_tools,
+                tool_choice="auto",
                 stream=False,
             )
             choice = response.choices[0]
