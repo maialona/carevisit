@@ -331,15 +331,23 @@ class RouteAgent:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url, params=params)
                 data = resp.json()
-            if data.get("status") == "OK" and data.get("results"):
+            status = data.get("status", "UNKNOWN")
+            if status == "OK" and data.get("results"):
                 loc = data["results"][0]["geometry"]["location"]
                 return {
                     "lat": loc["lat"],
                     "lng": loc["lng"],
                     "formatted_address": data["results"][0]["formatted_address"],
                 }
-        except Exception:
-            pass
+            # Log non-OK status for debugging
+            import logging
+            logging.getLogger(__name__).warning(
+                "Geocoding failed for %r: status=%s error_message=%s",
+                address, status, data.get("error_message", ""),
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Geocoding exception for %r: %s", address, e)
         return None
 
     async def _geocode_all(self, state: dict) -> None:
