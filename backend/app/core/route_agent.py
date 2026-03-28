@@ -208,13 +208,34 @@ class RouteAgent:
 
     @staticmethod
     def _build_address(case: CaseProfile) -> str:
-        """Combine district + road + address into a full geocodable string."""
+        """Combine district + road + address into a clean, geocodable string."""
+        import re
+        import unicodedata
+
         parts = [
             (case.district or "").strip(),
             (case.road or "").strip(),
             (case.address or "").strip(),
         ]
-        return "".join(parts)
+        combined = "".join(parts)
+        if not combined:
+            return ""
+
+        # Normalize full-width digits/letters → half-width (１１６ → 116)
+        combined = unicodedata.normalize("NFKC", combined)
+
+        # Strip city name wherever it appears (will prepend correctly below)
+        combined = re.sub(r"[台臺]南市", "", combined).strip()
+
+        # Remove neighborhood numbers (e.g. 012鄰, 3鄰)
+        combined = re.sub(r"\d+鄰", "", combined)
+
+        # Remove floor/unit suffixes (1F, 2F, B1, 1樓, 2樓以上…)
+        combined = re.sub(r"\d*[Ff]\d*", "", combined)
+        combined = re.sub(r"\d+樓.*", "", combined)
+
+        combined = combined.strip()
+        return f"臺南市{combined}" if combined else ""
 
     async def _fetch_cases(self, state: dict) -> None:
         q = select(CaseProfile).where(CaseProfile.org_id == self.user.org_id)
