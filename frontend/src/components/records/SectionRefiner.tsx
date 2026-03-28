@@ -52,6 +52,7 @@ export default function SectionRefiner({
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sectionPrompt, setSectionPrompt] = useState("");
   const [streamingAppend, setStreamingAppend] = useState<{ id: number; html: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ section: Section; prompt: string; mode: "rewrite" | "append" } | null>(null);
   const sectionsRef = useRef<Section[]>([]);
 
   const sections = useMemo(() => {
@@ -163,45 +164,76 @@ export default function SectionRefiner({
                 {isExpanded ? (
                   /* Expanded: input + buttons */
                   <div className="flex items-center gap-1.5 rounded-xl bg-gray-900 p-1.5 shadow-lg">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={sectionPrompt}
-                      onChange={(e) => setSectionPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.nativeEvent.isComposing) handleRefineSection(section, sectionPrompt);
-                        if (e.key === "Escape") { setExpandedId(null); setSectionPrompt(""); }
-                      }}
-                      placeholder="額外指令（可留空）"
-                      className="w-44 rounded-lg bg-gray-800 px-2 py-1 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRefineSection(section, sectionPrompt)}
-                      disabled={refiningId !== null}
-                      className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-2 py-1 text-xs font-bold text-gray-900 disabled:opacity-50"
-                      title="改寫此段落"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      改寫
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAppendSection(section, sectionPrompt)}
-                      disabled={refiningId !== null}
-                      className="inline-flex items-center gap-1 rounded-lg bg-gray-700 px-2 py-1 text-xs font-bold text-primary-400 disabled:opacity-50 hover:bg-gray-600"
-                      title="在現有內容後補充更多"
-                    >
-                      <PlusCircle className="h-3 w-3" />
-                      補充
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setExpandedId(null); setSectionPrompt(""); }}
-                      className="px-1 text-gray-500 hover:text-white text-xs"
-                    >
-                      ✕
-                    </button>
+                    {pendingAction && pendingAction.section.id === section.id ? (
+                      /* Confirmation state */
+                      <>
+                        <span className="px-1 text-xs text-gray-300">
+                          確定要{pendingAction.mode === "rewrite" ? "改寫" : "補充"}？
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const { section: s, prompt, mode } = pendingAction;
+                            setPendingAction(null);
+                            if (mode === "rewrite") handleRefineSection(s, prompt);
+                            else handleAppendSection(s, prompt);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-2 py-1 text-xs font-bold text-gray-900"
+                        >
+                          確定
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingAction(null)}
+                          className="px-1 text-gray-500 hover:text-white text-xs"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      /* Normal input state */
+                      <>
+                        <input
+                          autoFocus
+                          type="text"
+                          value={sectionPrompt}
+                          onChange={(e) => setSectionPrompt(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.nativeEvent.isComposing) setPendingAction({ section, prompt: sectionPrompt, mode: "rewrite" });
+                            if (e.key === "Escape") { setExpandedId(null); setSectionPrompt(""); }
+                          }}
+                          placeholder="額外指令（可留空）"
+                          className="w-44 rounded-lg bg-gray-800 px-2 py-1 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPendingAction({ section, prompt: sectionPrompt, mode: "rewrite" })}
+                          disabled={refiningId !== null}
+                          className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-2 py-1 text-xs font-bold text-gray-900 disabled:opacity-50"
+                          title="改寫此段落"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          改寫
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingAction({ section, prompt: sectionPrompt, mode: "append" })}
+                          disabled={refiningId !== null}
+                          className="inline-flex items-center gap-1 rounded-lg bg-gray-700 px-2 py-1 text-xs font-bold text-primary-400 disabled:opacity-50 hover:bg-gray-600"
+                          title="在現有內容後補充更多"
+                        >
+                          <PlusCircle className="h-3 w-3" />
+                          補充
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setExpandedId(null); setSectionPrompt(""); setPendingAction(null); }}
+                          className="px-1 text-gray-500 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   /* Collapsed: quick buttons + expand */
