@@ -224,6 +224,9 @@ class RouteAgent:
         # Normalize full-width digits/letters → half-width (１１６ → 116)
         combined = unicodedata.normalize("NFKC", combined)
 
+        # Strip notes after Chinese full stop (e.g. 。公文寄送地→...)
+        combined = re.sub(r"。.*", "", combined)
+
         # Strip city name wherever it appears (will prepend correctly below)
         combined = re.sub(r"[台臺]南市", "", combined).strip()
 
