@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { DirectionsRenderer, GoogleMap, useJsApiLoader } from "@react-google-maps/api";
+import { DirectionsRenderer, GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 import {
   DEFAULT_ORIGIN,
   RouteResult,
@@ -277,6 +277,8 @@ function RouteMapView({ result }: { result: RouteResult }) {
   const midIdx = Math.floor(stopsWithCoords.length / 2);
   const center = { lat: stopsWithCoords[midIdx].lat!, lng: stopsWithCoords[midIdx].lng! };
 
+  const originLocation = directions?.routes[0]?.legs[0]?.start_location;
+
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-100 shadow-sm">
       <GoogleMap
@@ -285,7 +287,28 @@ function RouteMapView({ result }: { result: RouteResult }) {
         zoom={13}
         options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
       >
-        {directions && <DirectionsRenderer directions={directions} />}
+        {directions && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{ suppressMarkers: true }}
+          />
+        )}
+        {/* Origin marker — A (green) */}
+        {originLocation && (
+          <Marker
+            position={originLocation}
+            label={{ text: "A", color: "white", fontWeight: "bold", fontSize: "14px" }}
+            icon="http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+          />
+        )}
+        {/* Stop markers — B, C, D... (red) */}
+        {directions && stopsWithCoords.map((stop, i) => (
+          <Marker
+            key={stop.case_id}
+            position={{ lat: stop.lat!, lng: stop.lng! }}
+            label={{ text: String.fromCharCode(66 + i), color: "white", fontWeight: "bold", fontSize: "14px" }}
+          />
+        ))}
       </GoogleMap>
     </div>
   );
