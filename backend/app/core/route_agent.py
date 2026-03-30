@@ -443,6 +443,8 @@ class RouteAgent:
                     "compliance": geocoded[0]["compliance"],
                     "duration_from_prev_min": None,
                     "distance_from_prev_km": None,
+                    "lat": geocoded[0].get("lat"),
+                    "lng": geocoded[0].get("lng"),
                 }],
                 "total_duration_min": 0,
                 "total_distance_km": 0,
@@ -501,6 +503,8 @@ class RouteAgent:
                 "compliance": case["compliance"],
                 "duration_from_prev_min": round(dur_sec / 60),
                 "distance_from_prev_km": round(dist_m / 1000, 1),
+                "lat": case.get("lat"),
+                "lng": case.get("lng"),
             })
 
         state["route"] = {
@@ -522,6 +526,8 @@ class RouteAgent:
                     "compliance": g["compliance"],
                     "duration_from_prev_min": None,
                     "distance_from_prev_km": None,
+                    "lat": g.get("lat"),
+                    "lng": g.get("lng"),
                 }
                 for i, g in enumerate(geocoded)
             ],

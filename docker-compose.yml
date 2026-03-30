@@ -36,6 +36,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: http://localhost:8080/api
+        VITE_GOOGLE_MAPS_API_KEY: AIzaSyDdkyuTSwW1bXYyjECMNSHS_As7qL43JO8
     ports:
       - "80:8080"
     depends_on:

@@ -12,6 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { DirectionsRenderer, GoogleMap, useJsApiLoader } from "@react-google-maps/api";
 import {
   DEFAULT_ORIGIN,
   RouteResult,
@@ -224,6 +225,72 @@ function CaseSelector({
   );
 }
 
+// ─── Route map ────────────────────────────────────────────────────────────────
+
+const MAP_CONTAINER_STYLE = { width: "100%", height: "400px" };
+
+function RouteMapView({ result }: { result: RouteResult }) {
+  const stopsWithCoords = result.route.filter((s) => s.lat != null && s.lng != null);
+  const apiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) ?? "";
+
+  const { isLoaded } = useJsApiLoader({
+    id: "carevisit-google-maps",
+    googleMapsApiKey: apiKey,
+  });
+
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const routeKey = result.route.map((s) => s.case_id).join(",");
+
+  useEffect(() => {
+    if (!isLoaded || stopsWithCoords.length === 0) return;
+    setDirections(null);
+    const service = new google.maps.DirectionsService();
+    const waypoints = stopsWithCoords.map((s) => ({
+      location: new google.maps.LatLng(s.lat!, s.lng!),
+      stopover: true,
+    }));
+    service.route(
+      {
+        origin: result.origin,
+        destination: result.origin,
+        waypoints,
+        optimizeWaypoints: false,
+        travelMode: google.maps.TravelMode.DRIVING,
+      },
+      (res, status) => {
+        if (status === google.maps.DirectionsStatus.OK && res) setDirections(res);
+      },
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, routeKey]);
+
+  if (!apiKey || stopsWithCoords.length === 0) return null;
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-[400px] items-center justify-center rounded-2xl border border-gray-100 bg-surface-50 shadow-sm">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const midIdx = Math.floor(stopsWithCoords.length / 2);
+  const center = { lat: stopsWithCoords[midIdx].lat!, lng: stopsWithCoords[midIdx].lng! };
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-100 shadow-sm">
+      <GoogleMap
+        mapContainerStyle={MAP_CONTAINER_STYLE}
+        center={center}
+        zoom={13}
+        options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+      >
+        {directions && <DirectionsRenderer directions={directions} />}
+      </GoogleMap>
+    </div>
+  );
+}
+
 // ─── Result section (shared) ──────────────────────────────────────────────────
 
 function RouteResultView({ result }: { result: RouteResult }) {
@@ -270,6 +337,9 @@ function RouteResultView({ result }: { result: RouteResult }) {
           </div>
         )}
       </div>
+
+      {/* Map */}
+      <RouteMapView result={result} />
 
       {/* Stops */}
       {result.route.length > 0 ? (

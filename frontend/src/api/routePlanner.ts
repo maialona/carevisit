@@ -11,6 +11,8 @@ export interface RouteStop {
   compliance: "overdue" | "due_soon";
   duration_from_prev_min: number | null;
   distance_from_prev_km: number | null;
+  lat?: number;
+  lng?: number;
 }
 
 export interface MissingCase {
