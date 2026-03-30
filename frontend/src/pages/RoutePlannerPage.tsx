@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { DirectionsRenderer, GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+import { DirectionsRenderer, GoogleMap, InfoWindow, Marker, useJsApiLoader } from "@react-google-maps/api";
 import {
   DEFAULT_ORIGIN,
   RouteResult,
@@ -239,6 +239,11 @@ function RouteMapView({ result }: { result: RouteResult }) {
   });
 
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<
+    | { kind: "origin" }
+    | { kind: "stop"; stop: RouteStop }
+    | null
+  >(null);
   const routeKey = result.route.map((s) => s.case_id).join(",");
 
   useEffect(() => {
@@ -293,22 +298,61 @@ function RouteMapView({ result }: { result: RouteResult }) {
             options={{ suppressMarkers: true }}
           />
         )}
-        {/* Origin marker — A (green) */}
+        {/* Origin marker — green pin (出發點) */}
         {originLocation && (
           <Marker
             position={originLocation}
-            label={{ text: "A", color: "white", fontWeight: "bold", fontSize: "14px" }}
-            icon="http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+            icon={{
+              url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+              scaledSize: new window.google.maps.Size(36, 36),
+            }}
+            onClick={() => setSelectedMarker({ kind: "origin" })}
           />
         )}
-        {/* Stop markers — B, C, D... (red) */}
+        {/* Stop markers — 1, 2, 3... (red) */}
         {directions && stopsWithCoords.map((stop, i) => (
           <Marker
             key={stop.case_id}
             position={{ lat: stop.lat!, lng: stop.lng! }}
-            label={{ text: String.fromCharCode(66 + i), color: "white", fontWeight: "bold", fontSize: "14px" }}
+            label={{ text: String(i + 1), color: "white", fontWeight: "bold", fontSize: "13px" }}
+            onClick={() => setSelectedMarker({ kind: "stop", stop })}
           />
         ))}
+
+        {/* InfoWindow — 出發點 */}
+        {selectedMarker?.kind === "origin" && originLocation && (
+          <InfoWindow position={originLocation} onCloseClick={() => setSelectedMarker(null)}>
+            <div style={{ fontSize: "13px", minWidth: "160px", lineHeight: "1.5" }}>
+              <p style={{ fontWeight: "700", marginBottom: "2px" }}>出發點</p>
+              <p style={{ color: "#555" }}>{result.origin}</p>
+            </div>
+          </InfoWindow>
+        )}
+
+        {/* InfoWindow — 停靠個案 */}
+        {selectedMarker?.kind === "stop" && selectedMarker.stop.lat != null && (
+          <InfoWindow
+            position={{ lat: selectedMarker.stop.lat!, lng: selectedMarker.stop.lng! }}
+            onCloseClick={() => setSelectedMarker(null)}
+          >
+            <div style={{ fontSize: "13px", minWidth: "190px", lineHeight: "1.6" }}>
+              <p style={{ fontWeight: "700", marginBottom: "2px" }}>
+                {selectedMarker.stop.order}. {selectedMarker.stop.name}
+              </p>
+              <p style={{ color: "#555", marginBottom: "4px" }}>
+                {selectedMarker.stop.formatted_address || selectedMarker.stop.address}
+              </p>
+              <p style={{ color: selectedMarker.stop.compliance === "overdue" ? "#dc2626" : "#d97706", fontWeight: "600" }}>
+                {selectedMarker.stop.compliance === "overdue" ? "逾期未訪" : "即將到期"}
+              </p>
+              {selectedMarker.stop.duration_from_prev_min != null && (
+                <p style={{ color: "#888", marginTop: "4px", fontSize: "12px" }}>
+                  距上站約 {selectedMarker.stop.duration_from_prev_min} 分 · {selectedMarker.stop.distance_from_prev_km} km
+                </p>
+              )}
+            </div>
+          </InfoWindow>
+        )}
       </GoogleMap>
     </div>
   );
