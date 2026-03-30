@@ -17,7 +17,6 @@ import {
   DEFAULT_ORIGIN,
   RouteResult,
   RouteStop,
-  ThinkingLog,
   streamManualRoutePlan,
   streamRoutePlan,
 } from "../api/routePlanner";
@@ -29,11 +28,6 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function stepColor(step: ThinkingLog["step"]) {
-  if (step === "ACT") return "bg-blue-100 text-blue-700";
-  if (step === "OBSERVE") return "bg-purple-100 text-purple-700";
-  return "bg-amber-100 text-amber-700";
-}
 
 function ComplianceBadge({ status }: { status: string }) {
   if (status === "overdue")
@@ -463,7 +457,6 @@ export default function RoutePlannerPage() {
   // Shared state
   const [origin, setOrigin] = useState("");
   const [isRunning, setIsRunning] = useState(false);
-  const [logs, setLogs] = useState<ThinkingLog[]>([]);
   const [result, setResult] = useState<RouteResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -471,7 +464,6 @@ export default function RoutePlannerPage() {
   const reset = () => {
     abortRef.current?.abort();
     setIsRunning(false);
-    setLogs([]);
     setResult(null);
     setErrorMsg(null);
   };
@@ -482,7 +474,7 @@ export default function RoutePlannerPage() {
   };
 
   const callbacks = {
-    onThinking: (log: ThinkingLog) => setLogs((prev) => [...prev, log]),
+    onThinking: () => {},
     onResult: (r: RouteResult) => setResult(r),
     onDone: () => setIsRunning(false),
     onError: (msg: string) => setErrorMsg(msg),
@@ -491,7 +483,6 @@ export default function RoutePlannerPage() {
   const start = () => {
     if (isRunning) return;
     setIsRunning(true);
-    setLogs([]);
     setResult(null);
     setErrorMsg(null);
 
@@ -610,7 +601,7 @@ export default function RoutePlannerPage() {
             {isRunning ? "規劃中…" : "開始規劃"}
           </button>
 
-          {(hasResult || logs.length > 0) && !isRunning && (
+          {hasResult && !isRunning && (
             <button
               onClick={reset}
               className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-500 transition hover:bg-surface-50"
@@ -622,28 +613,11 @@ export default function RoutePlannerPage() {
         </div>
       </div>
 
-      {/* Thinking log */}
-      {logs.length > 0 && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
-            Agent 思考過程
-          </h2>
-          <div className="space-y-2">
-            {logs.map((log, i) => (
-              <div key={i} className="flex items-start gap-2.5 text-sm">
-                <span className={`mt-0.5 flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${stepColor(log.step)}`}>
-                  {log.step}
-                </span>
-                <span className="leading-relaxed text-gray-700">{log.content}</span>
-              </div>
-            ))}
-            {isRunning && (
-              <div className="flex items-center gap-2 pt-1 text-xs text-gray-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                處理中…
-              </div>
-            )}
-          </div>
+      {/* Loading */}
+      {isRunning && (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-400">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Agent 規劃路線中，請稍候…
         </div>
       )}
 
