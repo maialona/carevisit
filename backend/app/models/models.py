@@ -126,7 +126,7 @@ class CaseProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     organization: Mapped["Organization"] = relationship(back_populates="case_profiles")
-    visit_schedule: Mapped["VisitSchedule | None"] = relationship(back_populates="case_profile", uselist=False)
+    visit_schedule: Mapped["VisitSchedule | None"] = relationship(back_populates="case_profile", uselist=False, passive_deletes=True)
 
 
 class VisitSchedule(Base):
