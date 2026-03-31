@@ -193,7 +193,7 @@ export default function CaseProfilesPage() {
         >
           <option value="">全部狀態</option>
           <option value="服務中">服務中</option>
-          <option value="暫停">暫停</option>
+          <option value="暫停服務">暫停服務</option>
           <option value="結案">結案</option>
         </select>
         {isSupervisor && (
@@ -279,7 +279,7 @@ export default function CaseProfilesPage() {
                       {c.service_status ? (
                         <span className={`whitespace-nowrap ${
                           c.service_status === "服務中" ? "badge-green" :
-                          c.service_status === "暫停" ? "badge-yellow" :
+                          c.service_status === "暫停服務" ? "badge-yellow" :
                           c.service_status === "結案" ? "badge-red" :
                           "badge-blue"
                         }`}>{c.service_status}</span>
